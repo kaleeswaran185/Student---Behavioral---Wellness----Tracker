@@ -1,0 +1,21 @@
+{
+    "name": "student-behavioral-wellness-tracker",
+    "version": "1.0.0",
+    "description": "Student Behavioral Wellness Tracker MVP",
+    "scripts": {
+        "start": "concurrently \"npm run start:server\" \"npm run start:client\"",
+        "start:client": "cd client && npm run dev",
+        "start:server": "cd backend && npm start",
+        "install:all": "npm install && cd client && npm install && cd ../backend && npm install"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "dependencies": {
+        "clsx": "^2.1.1",
+        "concurrently": "^8.2.2",
+        "framer-motion": "^12.34.0",
+        "recharts": "^3.7.0",
+        "tailwind-merge": "^3.4.0"
+    }
+}
