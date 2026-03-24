@@ -96,6 +96,20 @@ npm start
 - Direct pushes to protected branches should require the `CI / Verify` check
 - Full setup notes are in `docs/CI_CD.md`
 
+## Testing
+
+- Full testing documentation is in `docs/TESTING.md`
+- Main validation command: `npm run verify`
+- Staging smoke test command: `npm run smoke:staging`
+
+## Staging Rollout
+
+- Staging deployment assets are included for Docker-based rollout
+- Use `docker-compose.staging.yml` for a local staging simulation
+- Seed staging data with `npm run seed:staging`
+- Run the hosted smoke test with `npm run smoke:staging`
+- Full staging instructions are in `docs/STAGING_DEPLOY.md`
+
 ## Environment Reference
 
 ### Backend `.env`
