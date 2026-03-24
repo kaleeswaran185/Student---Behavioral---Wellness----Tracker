@@ -1,12 +1,28 @@
 import React, { useState } from 'react';
-import { User, Bell, Lock, Save, Mail, Shield, Check } from 'lucide-react';
+import { toast } from 'sonner';
+import { User, Bell, Save, Mail, Shield, UserPlus } from 'lucide-react';
 
-const Settings = ({ onSave }) => {
-    // 1. State Management
+const ToggleSwitch = ({ active, onClick }) => (
+    <button
+        onClick={onClick}
+        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${
+            active ? 'bg-indigo-600' : 'bg-slate-200'
+        }`}
+    >
+        <span
+            className={`${
+                active ? 'translate-x-6' : 'translate-x-1'
+            } inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}
+        />
+    </button>
+);
+
+const Settings = ({ onAddStudent, onSave }) => {
+    // 1. Profile State
     const [profile, setProfile] = useState({
-        name: "Mrs. Sarah Johnson",
-        email: "sarah.johnson@school.edu",
-        role: "School Counselor"
+        name: localStorage.getItem('teacher_name') || "",
+        email: localStorage.getItem('teacher_email') || "",
+        role: localStorage.getItem('teacher_role') || "School Counselor"
     });
 
     const [notifications, setNotifications] = useState({
@@ -15,8 +31,10 @@ const Settings = ({ onSave }) => {
         weeklyReport: true
     });
 
-
     const [isSaving, setIsSaving] = useState(false);
+
+    // 2. Quick Add Student State
+    const [newStudent, setNewStudent] = useState({ name: '', email: '', grade: '', risk: 'Low' });
 
     // Handlers
     const handleProfileChange = (e) => {
@@ -30,30 +48,46 @@ const Settings = ({ onSave }) => {
 
     const handleSave = () => {
         setIsSaving(true);
-        // Simulate API call
         setTimeout(() => {
             console.log("Saving Settings:", { profile, notifications });
+
+            if (profile.name) localStorage.setItem('teacher_name', profile.name);
+            if (profile.email) localStorage.setItem('teacher_email', profile.email);
+            if (profile.role) localStorage.setItem('teacher_role', profile.role);
+
             setIsSaving(false);
-            alert("✅ Settings Saved Successfully!");
+            toast.success("Settings Saved Successfully!");
             if (onSave) onSave();
         }, 1000);
     };
 
+    const handleAddStudent = (e) => {
+        e.preventDefault();
+        if (!newStudent.name.trim() || !newStudent.email.trim()) {
+            toast.error("Name and Email are required!");
+            return;
+        }
 
+        const studentObj = {
+            _id: Date.now().toString(),
+            id: Date.now(),
+            username: newStudent.name.trim(),
+            email: newStudent.email.trim(),
+            grade: newStudent.grade.trim() || "10-A",
+            risk: newStudent.risk,
+            status: 'Happy',
+            level: 1,
+            streak: 0,
+            avatar: "👤"
+        };
 
-
-    const ToggleSwitch = ({ active, onClick }) => (
-        <button
-            onClick={onClick}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${active ? 'bg-indigo-600' : 'bg-slate-200'
-                }`}
-        >
-            <span
-                className={`${active ? 'translate-x-6' : 'translate-x-1'
-                    } inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}
-            />
-        </button>
-    );
+        if (onAddStudent) {
+            const success = onAddStudent(studentObj);
+            if (success) {
+                setNewStudent({ name: '', email: '', grade: '', risk: 'Low' });
+            }
+        }
+    };
 
     return (
         <div className="max-w-4xl mx-auto space-y-8">
@@ -96,12 +130,12 @@ const Settings = ({ onSave }) => {
                             <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={16} />
                             <input
                                 type="email"
+                                name="email"
                                 value={profile.email}
-                                disabled
-                                className="w-full pl-10 pr-4 py-2 bg-slate-100 border border-slate-200 rounded-lg text-sm text-slate-500 cursor-not-allowed"
+                                onChange={handleProfileChange}
+                                className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
                             />
                         </div>
-                        <p className="text-xs text-slate-400">Contact admin to change email.</p>
                     </div>
 
                     <div className="space-y-2">
@@ -166,13 +200,84 @@ const Settings = ({ onSave }) => {
                         </div>
                         <ToggleSwitch
                             active={notifications.smsAlerts}
-                            onClick={() => { }} // Disabled for now
+                            onClick={() => { }}
                         />
                     </div>
                 </div>
             </div>
 
+            {/* Section 3: Quick Add Student */}
+            {onAddStudent && (
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div className="p-6 border-b border-slate-100 flex items-center gap-3">
+                        <div className="p-2 bg-teal-50 text-teal-600 rounded-lg">
+                            <UserPlus size={20} />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-bold text-slate-800">Quick Add Student</h3>
+                            <p className="text-xs text-slate-500">Add a new student to your class roster.</p>
+                        </div>
+                    </div>
 
+                    <form onSubmit={handleAddStudent} className="p-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-slate-700">Student Name *</label>
+                                <input
+                                    type="text"
+                                    required
+                                    value={newStudent.name}
+                                    onChange={(e) => setNewStudent({ ...newStudent, name: e.target.value })}
+                                    placeholder="e.g. John Doe"
+                                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-slate-700">Email Address *</label>
+                                <input
+                                    type="email"
+                                    required
+                                    value={newStudent.email}
+                                    onChange={(e) => setNewStudent({ ...newStudent, email: e.target.value })}
+                                    placeholder="e.g. john@school.edu"
+                                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-slate-700">Grade / Class</label>
+                                <input
+                                    type="text"
+                                    value={newStudent.grade}
+                                    onChange={(e) => setNewStudent({ ...newStudent, grade: e.target.value })}
+                                    placeholder="e.g. 10-A"
+                                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-slate-700">Initial Risk Level</label>
+                                <select
+                                    value={newStudent.risk}
+                                    onChange={(e) => setNewStudent({ ...newStudent, risk: e.target.value })}
+                                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all"
+                                >
+                                    <option value="Low">Low</option>
+                                    <option value="Medium">Medium</option>
+                                    <option value="High">High</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div className="flex justify-end">
+                            <button
+                                type="submit"
+                                className="flex items-center gap-2 px-6 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-medium shadow-md transition-all"
+                            >
+                                <UserPlus size={18} />
+                                Add Student to Roster
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            )}
 
             {/* Footer Action */}
             <div className="flex justify-end pt-4">

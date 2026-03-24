@@ -6,10 +6,7 @@ const User = require('./models/User');
 dotenv.config();
 
 // MongoDB Connection
-mongoose.connect(process.env.MONGO_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-})
+mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log('MongoDB Connected for Seeding'))
     .catch(err => console.log(err));
 
@@ -23,7 +20,8 @@ const students = [
     { username: "George King", email: "george@school.com", role: "student", risk: "Low", status: "Happy", grade: "9th", level: 1, streak: 15, avatar: "🦁" },
     { username: "Hannah Lee", email: "hannah@school.com", role: "student", risk: "High", status: "Sad", grade: "12th", level: 6, streak: 1, avatar: "⛸️" },
     { username: "Ian White", email: "ian@school.com", role: "student", risk: "Medium", status: "Tired", grade: "12th", level: 4, streak: 6, avatar: "🎸" },
-    { username: "Julia Roberts", email: "julia@school.com", role: "student", risk: "Low", status: "Excited", grade: "10th", level: 5, streak: 20, avatar: "🎭" }
+    { username: "Julia Roberts", email: "julia@school.com", role: "student", risk: "Low", status: "Excited", grade: "10th", level: 5, streak: 20, avatar: "🎭" },
+    { username: "Varsha S", email: "varsha@gmail.com", role: "student", risk: "Low", status: "Happy", grade: "10th", level: 3, streak: 5, avatar: "👩‍🎓" }
 ];
 
 const seedDB = async () => {

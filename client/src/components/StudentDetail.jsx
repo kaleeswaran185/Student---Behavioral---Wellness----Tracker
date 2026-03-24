@@ -1,165 +1,74 @@
 import React, { useState } from 'react';
 import { X, Flame, Trophy, AlertTriangle, Filter, Smile, Frown, Meh, History } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { 
+    LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+    AreaChart, Area, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis 
+} from 'recharts';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// 1. MOCK DATABASE (Dynamic Data per Student ID)
+// 1. HELPERS FOR DYNAMIC DATA
+const hashCode = (str) => {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // Convert to 32bit integer
+    }
+    return Math.abs(hash);
+};
+
+const generateMoodData = (studentId) => {
+    const data = [];
+    const hash = hashCode(String(studentId));
+    const dates = ['10/01', '10/03', '10/05', '10/07', '10/10', '10/12', '10/15', '10/18', '10/20', '10/21', '10/22', '10/24'];
+    
+    dates.forEach((date, i) => {
+        // Deterministic but "random" mood between 1 and 5
+        const mood = 1 + ((hash + i * 13) % 5);
+        data.push({ date, mood });
+    });
+    return data;
+};
+
+const STUDENT_COLORS = [
+    { theme: "bg-indigo-600", graph: "#4f46e5" },
+    { theme: "bg-emerald-600", graph: "#10b981" },
+    { theme: "bg-violet-600", graph: "#7c3aed" },
+    { theme: "bg-rose-600", graph: "#e11d48" },
+    { theme: "bg-amber-600", graph: "#d97706" },
+    { theme: "bg-cyan-600", graph: "#0891b2" },
+];
+
 const STUDENT_RECORDS = {
     1: { // Alice
         profile: { level: 5, xp: 2450, currentStreak: 12, avatar: "👩‍🎓" },
         themeColor: "bg-indigo-600",
-        graphColor: "#4f46e5", // Indigo
-        moodData: [
-            { date: '10/01', mood: 3 }, { date: '10/03', mood: 4 }, { date: '10/05', mood: 5 },
-            { date: '10/07', mood: 4 }, { date: '10/10', mood: 5 }, { date: '10/12', mood: 4 },
-            { date: '10/15', mood: 5 }, { date: '10/18', mood: 4 }, { date: '10/20', mood: 4 },
-            { date: '10/21', mood: 5 }, { date: '10/22', mood: 4 }, { date: '10/24', mood: 5 },
-        ],
-        history: [
-            { id: 1, date: "2023-10-24", type: "MOOD", data: { mood: "Happy", note: "Felt good about math test." } },
-            { id: 2, date: "2023-10-23", type: "ACHIEVEMENT", data: { badge: "Zen Master", icon: "🧘" } },
-            { id: 3, date: "2023-10-22", type: "MOOD", data: { mood: "Happy", note: "Feeling great!" } },
-        ]
+        graphColor: "#4f46e5",
+        moodData: generateMoodData(1),
+        history: [{ id: 1, date: "2023-10-24", type: "MOOD", data: { mood: "Happy", note: "Felt good about math test." } }]
     },
-    2: { // Bob (High Risk)
+    2: { // Bob
         profile: { level: 2, xp: 850, currentStreak: 3, avatar: "👨‍🎓" },
         themeColor: "bg-red-600",
-        graphColor: "#dc2626", // Red
+        graphColor: "#dc2626",
         moodData: [
             { date: '10/01', mood: 4 }, { date: '10/03', mood: 3 }, { date: '10/05', mood: 4 },
             { date: '10/07', mood: 3 }, { date: '10/10', mood: 2 }, { date: '10/12', mood: 2 },
-            { date: '10/15', mood: 1 }, { date: '10/18', mood: 1 }, { date: '10/20', mood: 1 },
-            { date: '10/21', mood: 1 }, { date: '10/22', mood: 1 }, { date: '10/24', mood: 1 },
+            { date: '11/15', mood: 1 }, { date: '11/18', mood: 1 }, { date: '11/20', mood: 1 },
         ],
-        history: [
-            { id: 1, date: "2023-10-24", type: "ALERT", data: { severity: "Critical", trigger: "Keyword Detected: 'Hopeless'" } },
-            { id: 2, date: "2023-10-23", type: "ALERT", data: { severity: "High", trigger: "Missed Check-in" } },
-            { id: 3, date: "2023-10-22", type: "MOOD", data: { mood: "Sad", note: "I don't want to be here." } },
-        ]
-    },
-    3: { // Charlie (Fluctuating)
-        profile: { level: 3, xp: 1200, currentStreak: 7, avatar: "🧑‍🎓" },
-        themeColor: "bg-yellow-500", // Changed to yellow as requested
-        graphColor: "#ca8a04", // Yellow-600
-        moodData: [
-            { date: '10/01', mood: 3 }, { date: '10/03', mood: 2 }, { date: '10/05', mood: 4 },
-            { date: '10/07', mood: 2 }, { date: '10/10', mood: 3 }, { date: '10/12', mood: 4 },
-            { date: '10/15', mood: 3 }, { date: '10/18', mood: 2 }, { date: '10/20', mood: 4 },
-            { date: '10/21', mood: 3 }, { date: '10/22', mood: 2 }, { date: '10/24', mood: 3 },
-        ],
-        history: [
-            { id: 1, date: "2023-10-24", type: "MOOD", data: { mood: "Tired", note: "Didn't sleep well." } },
-            { id: 2, date: "2023-10-23", type: "MOOD", data: { mood: "Okay", note: "Just an average day." } },
-            { id: 3, date: "2023-10-22", type: "ACHIEVEMENT", data: { badge: "Consistency", icon: "🗓️" } },
-        ]
-    },
-    4: { // Diana (Improving)
-        profile: { level: 4, xp: 1800, currentStreak: 8, avatar: "👩‍🎓" },
-        themeColor: "bg-teal-500",
-        graphColor: "#14b8a6", // Teal-500
-        moodData: [
-            { date: '10/01', mood: 3 }, { date: '10/03', mood: 4 }, { date: '10/05', mood: 4 },
-            { date: '10/07', mood: 5 }, { date: '10/10', mood: 4 }, { date: '10/12', mood: 5 },
-            { date: '10/15', mood: 5 }, { date: '10/18', mood: 4 }, { date: '10/20', mood: 4 },
-            { date: '10/21', mood: 5 }, { date: '10/22', mood: 5 }, { date: '10/24', mood: 5 },
-        ],
-        history: [
-            { id: 1, date: "2023-10-24", type: "MOOD", data: { mood: "Happy", note: "Team project went well!" } },
-            { id: 2, date: "2023-10-22", type: "ACHIEVEMENT", data: { badge: "Helper", icon: "🤝" } },
-        ]
-    },
-    5: { // Evan (Struggling/Tired)
-        profile: { level: 3, xp: 1100, currentStreak: 2, avatar: "👨‍🎓" },
-        themeColor: "bg-amber-500",
-        graphColor: "#f59e0b", // Amber-500
-        moodData: [
-            { date: '10/01', mood: 3 }, { date: '10/03', mood: 3 }, { date: '10/05', mood: 2 },
-            { date: '10/07', mood: 2 }, { date: '10/10', mood: 3 }, { date: '10/12', mood: 2 },
-            { date: '10/15', mood: 2 }, { date: '10/18', mood: 3 }, { date: '10/20', mood: 2 },
-            { date: '10/21', mood: 2 }, { date: '10/22', mood: 1 }, { date: '10/24', mood: 2 },
-        ],
-        history: [
-            { id: 1, date: "2023-10-24", type: "MOOD", data: { mood: "Tired", note: "Practice was hard." } },
-            { id: 2, date: "2023-10-21", type: "MOOD", data: { mood: "Okay", note: "Catching up on sleep." } },
-        ]
-    },
-    6: { // Fiona (Medium Risk - Stressed)
-        profile: { level: 2, xp: 950, currentStreak: 2, avatar: "🎨" },
-        themeColor: "bg-orange-500",
-        graphColor: "#f97316", // Orange-500
-        moodData: [
-            { date: '10/01', mood: 3 }, { date: '10/03', mood: 3 }, { date: '10/05', mood: 2 },
-            { date: '10/07', mood: 2 }, { date: '10/10', mood: 1 }, { date: '10/12', mood: 2 },
-            { date: '10/15', mood: 2 }, { date: '10/18', mood: 2 }, { date: '10/20', mood: 2 },
-            { date: '10/21', mood: 3 }, { date: '10/22', mood: 2 }, { date: '10/24', mood: 2 },
-        ],
-        history: [
-            { id: 1, date: "2023-10-24", type: "MOOD", data: { mood: "Stressed", note: "Art project due soon." } },
-            { id: 2, date: "2023-10-22", type: "MOOD", data: { mood: "Okay", note: "Feeling a bit better." } },
-        ]
-    },
-    7: { // George (Low Risk - Calm)
-        profile: { level: 3, xp: 1500, currentStreak: 15, avatar: "🦁" },
-        themeColor: "bg-blue-500",
-        graphColor: "#3b82f6", // Blue-500
-        moodData: [
-            { date: '10/01', mood: 4 }, { date: '10/03', mood: 4 }, { date: '10/05', mood: 4 },
-            { date: '10/07', mood: 4 }, { date: '10/10', mood: 4 }, { date: '10/12', mood: 4 },
-            { date: '10/15', mood: 5 }, { date: '10/18', mood: 4 }, { date: '10/20', mood: 4 },
-            { date: '10/21', mood: 4 }, { date: '10/22', mood: 4 }, { date: '10/24', mood: 4 },
-        ],
-        history: [
-            { id: 1, date: "2023-10-24", type: "MOOD", data: { mood: "Calm", note: "Meditation helped." } },
-            { id: 2, date: "2023-10-20", type: "ACHIEVEMENT", data: { badge: "Peacekeeper", icon: "🕊️" } },
-        ]
-    },
-    8: { // Hannah (Low - Happy)
-        profile: { level: 5, xp: 2800, currentStreak: 20, avatar: "⛸️" },
-        themeColor: "bg-pink-500",
-        graphColor: "#ec4899", // Pink-500
-        moodData: [
-            { date: '10/01', mood: 5 }, { date: '10/03', mood: 5 }, { date: '10/05', mood: 4 },
-            { date: '10/07', mood: 5 }, { date: '10/10', mood: 5 }, { date: '10/12', mood: 4 },
-            { date: '10/15', mood: 5 }, { date: '10/18', mood: 5 }, { date: '10/20', mood: 5 },
-            { date: '10/21', mood: 4 }, { date: '10/22', mood: 5 }, { date: '10/24', mood: 5 },
-        ],
-        history: [
-            { id: 1, date: "2023-10-24", type: "MOOD", data: { mood: "Happy", note: "Won the competition!" } },
-            { id: 2, date: "2023-10-23", type: "ACHIEVEMENT", data: { badge: "Champion", icon: "🏆" } },
-        ]
-    },
-    9: { // Ian (High Risk - Sad)
-        profile: { level: 1, xp: 400, currentStreak: 0, avatar: "🎸" },
-        themeColor: "bg-slate-700",
-        graphColor: "#334155", // Slate-700
-        moodData: [
-            { date: '10/01', mood: 2 }, { date: '10/03', mood: 2 }, { date: '10/05', mood: 1 },
-            { date: '10/07', mood: 1 }, { date: '10/10', mood: 2 }, { date: '10/12', mood: 1 },
-            { date: '10/15', mood: 1 }, { date: '10/18', mood: 1 }, { date: '10/20', mood: 2 },
-            { date: '10/21', mood: 1 }, { date: '10/22', mood: 1 }, { date: '10/24', mood: 1 },
-        ],
-        history: [
-            { id: 1, date: "2023-10-24", type: "MOOD", data: { mood: "Sad", note: "Nothing feels right." } },
-            { id: 2, date: "2023-10-22", type: "ALERT", data: { severity: "High", trigger: "Isolation Detected" } },
-        ]
-    },
-    10: { // Julia (Medium - Tired)
-        profile: { level: 3, xp: 1300, currentStreak: 3, avatar: "🎭" },
-        themeColor: "bg-purple-500",
-        graphColor: "#a855f7", // Purple-500
-        moodData: [
-            { date: '10/01', mood: 3 }, { date: '10/03', mood: 3 }, { date: '10/05', mood: 4 },
-            { date: '10/07', mood: 3 }, { date: '10/10', mood: 2 }, { date: '10/12', mood: 3 },
-            { date: '10/15', mood: 2 }, { date: '10/18', mood: 2 }, { date: '10/20', mood: 3 },
-            { date: '10/21', mood: 2 }, { date: '10/22', mood: 3 }, { date: '10/24', mood: 3 },
-        ],
-        history: [
-            { id: 1, date: "2023-10-24", type: "MOOD", data: { mood: "Tired", note: "Rehearsals are long." } },
-            { id: 2, date: "2023-10-23", type: "MOOD", data: { mood: "Okay", note: "Lines are memorized." } },
-        ]
+        history: [{ id: 1, date: "2023-10-24", type: "ALERT", data: { severity: "Critical", trigger: "Keyword Detected: 'Hopeless'" } }]
     }
 };
+
+const WELLNESS_DATA = [
+    { subject: 'Sleep', A: 80, fullMark: 100 },
+    { subject: 'Stress', A: 40, fullMark: 100 },
+    { subject: 'Social', A: 90, fullMark: 100 },
+    { subject: 'Mood', A: 70, fullMark: 100 },
+    { subject: 'Focus', A: 60, fullMark: 100 },
+    { subject: 'Activity', A: 75, fullMark: 100 },
+];
 
 const getMoodIcon = (mood) => {
     switch (mood) {
@@ -173,27 +82,42 @@ const getMoodIcon = (mood) => {
 };
 
 const StudentDetail = ({ student, onClose }) => {
-    const [filter, setFilter] = useState('ALL'); // ALL | MOOD | ACHIEVEMENT
+    const [filter, setFilter] = useState('ALL');
 
     // 2. DYNAMIC DATA LOOKUP
-    // Retrieve the specific record for this student ID if it exists in mock data
-    // For new real students, we won't have mock history, so we'll generate a default
-    const mockRecord = STUDENT_RECORDS[student?.id || student?._id] || STUDENT_RECORDS[1];
+    const sId = student?._id || student?.id || "unknown";
+    const numericId = parseInt(sId, 10);
+    const mockRecord = STUDENT_RECORDS[numericId] || null;
+
+    const hash = hashCode(String(sId));
+    const colorPair = STUDENT_COLORS[hash % STUDENT_COLORS.length];
+
+    const DEFAULT_RECORD = {
+        profile: { level: 1, xp: 100, currentStreak: 0, avatar: "👤" },
+        themeColor: colorPair.theme,
+        graphColor: colorPair.graph,
+        moodData: generateMoodData(sId),
+        history: [
+            { id: 1, date: "2023-10-24", type: "MOOD", data: { mood: "Okay", note: "Wellness snapshot generated." } },
+        ]
+    };
+
+    const record = mockRecord || DEFAULT_RECORD;
+
 
     // Construct profile from passed student prop (real data) mixed with mock defaults
     const profile = {
         name: student?.username || student?.name || "Student",
-        level: student?.level || 1,
-        xp: (student?.level || 1) * 100 + 50,
-        currentStreak: student?.streak || 0,
-        avatar: student?.avatar || "👤"
+        level: student?.level || record.profile.level,
+        xp: record.profile.xp || (student?.level || 1) * 100 + 50,
+        currentStreak: student?.streak ?? record.profile.currentStreak,
+        avatar: student?.avatar || record.profile.avatar
     };
 
-    // Use mock data for graph/history if available, otherwise default to Alice's data for demo purposes
-    // In a real full app, we would fetch this specific student's history from API
-    const themeColor = mockRecord.themeColor;
-    const moodGraphData = mockRecord.moodData;
-    const historyData = mockRecord.history;
+    // Use the resolved record for graph/history data
+    const themeColor = record.themeColor;
+    const moodGraphData = record.moodData;
+    const historyData = record.history;
 
     const filteredHistory = historyData.filter(item => {
         if (filter === 'ALL') return true;
@@ -245,43 +169,66 @@ const StudentDetail = ({ student, onClose }) => {
 
                     <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50">
 
-                        {/* Section B: Mental Health Graph */}
-                        <div className="bg-white/80 backdrop-blur-md rounded-xl shadow-lg border border-white/50 overflow-hidden">
-                            <div className="p-6 border-b border-gray-100">
-                                <h3 className="text-slate-700 text-lg font-semibold flex items-center gap-2">
-                                    📈 Recent Mood Trends (30 Days)
-                                </h3>
+                        {/* Section B: Insights & Trends */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            {/* Mood Trend (Area Chart) */}
+                            <div className="bg-white rounded-xl shadow-lg border border-slate-100 overflow-hidden">
+                                <div className="p-4 border-b border-slate-50 flex justify-between items-center">
+                                    <h3 className="text-slate-700 font-bold flex items-center gap-2">
+                                        📈 Mood Stability
+                                    </h3>
+                                    <span className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">30 Day Trend</span>
+                                </div>
+                                <div className="p-4 h-64">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <AreaChart data={moodGraphData}>
+                                            <defs>
+                                                <linearGradient id="colorMood" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="5%" stopColor={record.graphColor} stopOpacity={0.3}/>
+                                                    <stop offset="95%" stopColor={record.graphColor} stopOpacity={0}/>
+                                                </linearGradient>
+                                            </defs>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                            <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                                            <YAxis domain={[0, 5]} hide />
+                                            <Tooltip 
+                                                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                                            />
+                                            <Area 
+                                                type="monotone" 
+                                                dataKey="mood" 
+                                                stroke={record.graphColor} 
+                                                strokeWidth={3}
+                                                fillOpacity={1} 
+                                                fill="url(#colorMood)" 
+                                            />
+                                        </AreaChart>
+                                    </ResponsiveContainer>
+                                </div>
                             </div>
-                            <div className="p-6 h-64 w-full">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <LineChart data={moodGraphData}>
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                                        <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                                        <YAxis
-                                            domain={[0, 5]}
-                                            tickCount={5}
-                                            tickFormatter={(value) => {
-                                                if (value === 1) return 'Sad';
-                                                if (value === 4) return 'Happy';
-                                                return '';
-                                            }}
-                                            tick={{ fontSize: 12, fill: '#64748b' }}
-                                            axisLine={false}
-                                            tickLine={false}
-                                        />
-                                        <Tooltip
-                                            contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0' }}
-                                        />
-                                        <Line
-                                            type="monotone"
-                                            dataKey="mood"
-                                            stroke={mockRecord.graphColor}
-                                            strokeWidth={3}
-                                            activeDot={{ r: 6, strokeWidth: 0, fill: mockRecord.graphColor }}
-                                            dot={{ r: 3, fill: mockRecord.graphColor, strokeWidth: 0 }}
-                                        />
-                                    </LineChart>
-                                </ResponsiveContainer>
+
+                            {/* Wellness Radar (Radar Chart) */}
+                            <div className="bg-white rounded-xl shadow-lg border border-slate-100 overflow-hidden">
+                                <div className="p-4 border-b border-slate-50">
+                                    <h3 className="text-slate-700 font-bold flex items-center gap-2">
+                                        🕸️ Wellness Radar
+                                    </h3>
+                                </div>
+                                <div className="p-4 h-64">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <RadarChart cx="50%" cy="50%" outerRadius="80%" data={WELLNESS_DATA}>
+                                            <PolarGrid stroke="#f1f5f9" />
+                                            <PolarAngleAxis dataKey="subject" tick={{ fill: '#64748b', fontSize: 10 }} />
+                                            <Radar 
+                                                name={profile.name} 
+                                                dataKey="A" 
+                                                stroke={record.graphColor} 
+                                                fill={record.graphColor} 
+                                                fillOpacity={0.6} 
+                                            />
+                                        </RadarChart>
+                                    </ResponsiveContainer>
+                                </div>
                             </div>
                         </div>
 

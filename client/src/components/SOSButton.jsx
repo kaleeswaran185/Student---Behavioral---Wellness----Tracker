@@ -1,37 +1,56 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, Loader2 } from 'lucide-react';
-import { toast, Toaster } from 'sonner';
+import { toast } from 'sonner';
+import { useAuth } from '../context/AuthContext';
 
-const SOSButton = () => {
+const SOSButton = ({ onTrigger, studentName }) => {
+    const { user } = useAuth();
     const [loading, setLoading] = useState(false);
 
-    const handleSOS = () => {
+    const handleSOS = async () => {
+        if (!user?.token) {
+            toast.error('Please log in again before sending SOS.');
+            return;
+        }
+
         setLoading(true);
-
-        // Simulate network delay
-        setTimeout(() => {
-            const newAlert = {
-                id: Date.now(),
-                student: "Alex (Student)", // Default for demo, or fetch from auth
-                severity: "High",
-                type: "SOS Triggered",
-                message: "Student requested immediate assistance via SOS button.",
-                time: "Just now",
-                status: "Unread"
-            };
-
-            // Save to LocalStorage for Teacher Dashboard
-            const existingAlerts = JSON.parse(localStorage.getItem('teacher_alerts') || '[]');
-            localStorage.setItem('teacher_alerts', JSON.stringify([newAlert, ...existingAlerts]));
-
-            toast.error("SOS Alert Sent! Teacher notified.", {
-                description: "Help is on the way. Stay calm.",
-                duration: 5000,
+        try {
+            const response = await fetch('/api/sos', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${user.token}`
+                },
+                body: JSON.stringify({
+                    alert: {
+                        student: studentName || 'Unknown Student',
+                        severity: 'High',
+                        type: 'SOS Triggered',
+                        message: 'Student requested immediate assistance via SOS button.'
+                    }
+                })
             });
 
+            if (!response.ok) {
+                const failedData = await response.json().catch(() => ({}));
+                throw new Error(failedData.message || 'Failed to send SOS alert.');
+            }
+
+            if (onTrigger) {
+                onTrigger();
+            }
+
+            toast.error('SOS Alert Sent! Teacher notified.', {
+                description: 'Help is on the way. Stay calm.',
+                duration: 5000,
+            });
+        } catch (error) {
+            console.error('Error sending SOS to backend:', error);
+            toast.error(error.message || 'Unable to send SOS alert right now.');
+        } finally {
             setLoading(false);
-        }, 1000);
+        }
     };
 
     return (
@@ -39,7 +58,7 @@ const SOSButton = () => {
             <Button
                 variant="destructive"
                 size="lg"
-                className="flex items-center gap-2 font-bold shadow-lg animate-pulse hover:animate-none"
+                className="bg-red-600 hover:bg-red-700 text-white flex items-center gap-2 font-bold shadow-lg animate-pulse hover:animate-none border-none"
                 onClick={handleSOS}
                 disabled={loading}
             >

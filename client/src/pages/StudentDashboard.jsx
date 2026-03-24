@@ -4,12 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import SOSButton from '@/components/SOSButton';
 import WellnessBuddy from '@/components/WellnessBuddy';
+import TeacherChat from '@/components/TeacherChat';
 import BreathingModal from '@/components/BreathingModal';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Award, Star, Zap, ChevronDown, ChevronUp, Calendar, Clock, Lock, History } from 'lucide-react';
+import { Award, Star, Zap, ChevronDown, ChevronUp, Calendar, Clock, Lock, History, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Confetti from 'react-confetti';
-import { Toaster, toast } from 'sonner';
+import { toast } from 'sonner';
+import { useAuth } from '../context/AuthContext';
 
 // Mock Data
 const initialMockData = [
@@ -27,66 +29,104 @@ const moodOptions = [
 
 const getCurrentTime = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-const MoodHistoryList = ({ history }) => {
+const MoodHistoryList = ({ history, onDelete }) => {
     const [expandedId, setExpandedId] = useState(null);
 
+    // Group items by date
+    const groupedHistory = history.reduce((acc, item) => {
+        if (!acc[item.date]) acc[item.date] = [];
+        acc[item.date].push(item);
+        return acc;
+    }, {});
+
+    const dates = Object.keys(groupedHistory);
+
+    if (history.length === 0) {
+        return (
+            <div className="flex flex-col items-center justify-center h-full text-center p-6 space-y-3">
+                <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center text-3xl">
+                    📅
+                </div>
+                <div>
+                    <p className="text-sm font-semibold text-slate-600">No history yet</p>
+                    <p className="text-xs text-slate-400">Your wellness journey starts here. Log your first mood to see it in the timeline!</p>
+                </div>
+            </div>
+        );
+    }
+
     return (
-        <div className="space-y-3">
+        <div className="space-y-6">
             <AnimatePresence initial={false}>
-                {history.map((item, index) => (
-                    <motion.div
-                        key={item.id}
-                        initial={{ opacity: 0, x: -20, height: 0 }}
-                        animate={{ opacity: 1, x: 0, height: 'auto' }}
-                        layout
-                        transition={{ duration: 0.3 }}
-                    >
-                        <div
-                            className="group cursor-pointer bg-white/50 hover:bg-white/80 transition-colors rounded-lg border border-slate-100 overflow-hidden"
-                            onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}
-                        >
-                            <div className="p-3 flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <span className="text-2xl">{item.emoji}</span>
-                                    <div>
-                                        <div className="flex items-center gap-2">
-                                            <p className="text-sm font-semibold text-slate-700">{item.date}</p>
-                                            {item.time && (
-                                                <span className="text-xs text-slate-400 flex items-center gap-0.5">
-                                                    <Clock className="w-3 h-3" /> {item.time}
-                                                </span>
-                                            )}
-                                        </div>
-                                        <div className="flex items-center gap-2 mt-0.5">
-                                            <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium inline-block", item.color)}>
-                                                {item.mood}
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-                                {expandedId === item.id ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
-                            </div>
-                            <AnimatePresence>
-                                {expandedId === item.id && item.snippet && (
-                                    <motion.div
-                                        initial={{ height: 0 }}
-                                        animate={{ height: 'auto' }}
-                                        exit={{ height: 0 }}
-                                        className="overflow-hidden"
-                                    >
-                                        <div className="px-4 pb-3 pt-0 text-sm text-slate-600 border-t border-slate-100/50 mt-1">
-                                            <p className="pt-2 italic">"{item.snippet}"</p>
-                                        </div>
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
-                            {!expandedId && item.snippet && (
-                                <div className="px-3 pb-2 text-xs text-slate-500 truncate max-w-[200px] ml-11">
-                                    {item.snippet.length > 30 ? item.snippet.substring(0, 30) + "..." : item.snippet}
-                                </div>
-                            )}
+                {dates.map((date, dateIdx) => (
+                    <div key={date} className="space-y-3">
+                        <div className="flex items-center gap-2 mb-1">
+                            <div className="h-px flex-1 bg-slate-100" />
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50 px-2 py-0.5 rounded-full border border-slate-100">
+                                Day {dates.length - dateIdx} — {date}
+                            </span>
+                            <div className="h-px flex-1 bg-slate-100" />
                         </div>
-                    </motion.div>
+                        {groupedHistory[date].map((item) => (
+                            <motion.div
+                                key={item._id || item.id}
+                                initial={{ opacity: 0, x: -20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                layout
+                                transition={{ duration: 0.3 }}
+                            >
+                                <div
+                                    className="group cursor-pointer bg-white/50 hover:bg-white/80 transition-colors rounded-lg border border-slate-100 overflow-hidden relative shadow-sm"
+                                    onClick={() => setExpandedId(expandedId === (item._id || item.id) ? null : (item._id || item.id))}
+                                >
+                                    {/* Delete Button */}
+                                    <button 
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            if(onDelete) onDelete(item.type, item._id || item.id);
+                                        }}
+                                        className="absolute top-2 right-2 p-1.5 opacity-0 group-hover:opacity-100 hover:bg-red-50 hover:text-red-500 rounded-full transition-all text-slate-300"
+                                    >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+
+                                    <div className="p-3 flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-2xl">{item.emoji}</span>
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <p className="text-xs font-bold text-slate-500">{item.time || "Logged"}</p>
+                                                    <span className={cn("text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-tight", item.color)}>
+                                                        {item.mood}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {expandedId === (item._id || item.id) ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                                    </div>
+                                    <AnimatePresence>
+                                        {expandedId === (item._id || item.id) && item.snippet && (
+                                            <motion.div
+                                                initial={{ height: 0 }}
+                                                animate={{ height: 'auto' }}
+                                                exit={{ height: 0 }}
+                                                className="overflow-hidden"
+                                            >
+                                                <div className="px-4 pb-3 pt-0 text-sm text-slate-600 border-t border-slate-100/50 mt-1">
+                                                    <p className="pt-2 italic">"{item.snippet}"</p>
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                    {expandedId !== (item._id || item.id) && item.snippet && (
+                                         <div className="px-3 pb-2 text-xs text-slate-500 truncate max-w-[250px] ml-11 opacity-70">
+                                            {item.snippet}
+                                        </div>
+                                    )}
+                                </div>
+                            </motion.div>
+                        ))}
+                    </div>
                 ))}
             </AnimatePresence>
         </div>
@@ -166,26 +206,54 @@ const AchievementsCard = ({ xp, level, streak, achievements }) => {
     );
 };
 
-const StudentDashboard = () => {
+const StudentDashboard = ({ onLogout, onTriggerSOS }) => {
+    const { user, logout } = useAuth(); // Global auth context
+    
     // UI State
     const [mood, setMood] = useState(null);
     const [journalEntry, setJournalEntry] = useState('');
     const [isBreathingOpen, setIsBreathingOpen] = useState(false);
     const [showConfetti, setShowConfetti] = useState(false);
     const [studentName, setStudentName] = useState("Student");
+    const [activeChatTab, setActiveChatTab] = useState('ai');
 
     useEffect(() => {
-        const storedName = localStorage.getItem('student_name');
-        if (storedName) {
-            setStudentName(storedName);
+        if (user && user.username) {
+            setStudentName(user.username);
+        } else {
+            const storedName = localStorage.getItem('student_name');
+            if (storedName) {
+                setStudentName(storedName);
+            }
         }
-    }, []);
+    }, [user]);
 
-    // Deep State (initialized from storage or defaults)
     const [xp, setXp] = useState(() => parseInt(localStorage.getItem('xp')) || 750);
     const [level, setLevel] = useState(() => parseInt(localStorage.getItem('level')) || 2);
     const [streak, setStreak] = useState(() => parseInt(localStorage.getItem('streak')) || 1);
-    const [history, setHistory] = useState(initialMockData);
+    const [history, setHistory] = useState([]);
+
+    const fetchHistory = async () => {
+        try {
+            const res = await fetch('/api/history', {
+                headers: {
+                    Authorization: `Bearer ${user.token}`
+                }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setHistory(data);
+            }
+        } catch (error) {
+            console.error("Failed to fetch history:", error);
+        }
+    };
+
+    useEffect(() => {
+        if (user) {
+            fetchHistory();
+        }
+    }, [user]);
 
     // 1. Achievements State (Manual for Zen Master & Streak Star)
     const [achievements, setAchievements] = useState(() => {
@@ -216,7 +284,6 @@ const StudentDashboard = () => {
             return () => clearTimeout(timer);
         }
     }, [showConfetti]);
-
 
     const addExperience = (amount = 50) => {
         setXp(prevXp => {
@@ -299,63 +366,92 @@ const StudentDashboard = () => {
             ));
         }
 
-
-        // Update History
+        // Post Check-in to Backend API
         const selectedOption = moodOptions.find(opt => opt.label === selectedMoodLabel);
-
-        setHistory(prevHistory => {
-            const isTodayAlreadyLogged = prevHistory.length > 0 && prevHistory[0].date.startsWith("Today");
-
-            if (isTodayAlreadyLogged) {
-                // Update
-                return [{
-                    ...prevHistory[0],
-                    mood: selectedMoodLabel,
-                    emoji: selectedOption.emoji,
-                    color: selectedOption.color.split(' ')[0] + ' ' + selectedOption.color.split(' ')[1],
-                    time: getCurrentTime()
-                }, ...prevHistory.slice(1)];
-            } else {
-                // New
-                return [{
-                    id: Date.now(),
-                    date: "Today, " + new Date().toLocaleDateString(),
-                    time: getCurrentTime(),
-                    mood: selectedMoodLabel,
-                    emoji: selectedOption.emoji,
-                    snippet: "Check-in",
-                    color: selectedOption.color.split(' ')[0] + ' ' + selectedOption.color.split(' ')[1],
-                    type: 'Check-in'
-                }, ...prevHistory];
+        
+        const saveCheckin = async () => {
+            try {
+                await fetch('/api/history/checkin', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${user.token}`
+                    },
+                    body: JSON.stringify({
+                        mood: selectedMoodLabel,
+                        emoji: selectedOption.emoji,
+                        note: "Check-in"
+                    })
+                });
+                fetchHistory(); // Refresh timeline from backend
+            } catch (error) {
+                console.error("Failed to save checkin:", error);
             }
-        });
+        };
+
+        saveCheckin();
     };
 
-    const handleSaveJournal = () => {
+    const handleDeleteHistory = async (type, id) => {
+        try {
+            const res = await fetch(`/api/history/${type}/${id}`, {
+                method: 'DELETE',
+                headers: {
+                    Authorization: `Bearer ${user.token}`
+                }
+            });
+            if (res.ok) {
+                toast.success("Entry removed");
+                fetchHistory();
+            } else {
+                toast.error("Failed to delete entry");
+            }
+        } catch (error) {
+            console.error("Delete error:", error);
+            toast.error("Error deleting entry");
+        }
+    };
+
+    const handleSaveJournal = async () => {
         if (!journalEntry.trim() || !mood) return;
 
         addExperience(20); // Bonus XP
 
         const selectedOption = moodOptions.find(opt => opt.label === mood);
 
-        const newJournalEntry = {
-            id: Date.now(),
-            date: "Today, " + new Date().toLocaleDateString(),
-            time: getCurrentTime(),
-            mood: mood,
-            emoji: selectedOption.emoji,
-            snippet: journalEntry,
-            color: selectedOption.color.split(' ')[0] + ' ' + selectedOption.color.split(' ')[1],
-            type: 'Journal'
-        };
+        try {
+            await fetch('/api/history/journal', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${user.token}`
+                },
+                body: JSON.stringify({
+                    mood: mood,
+                    content: journalEntry,
+                    emoji: selectedOption ? selectedOption.emoji : '📝'
+                })
+            });
+            fetchHistory(); // Refresh timeline from backend
+            setJournalEntry('');
+            toast.success("Journal entry saved securely.");
+        } catch (error) {
+            console.error("Failed to save journal:", error);
+            toast.error("Failed to save journal.");
+        }
+    };
 
-        setHistory(prev => [newJournalEntry, ...prev]);
-        setJournalEntry('');
+    const handleLogoutClick = () => {
+        if (onLogout) {
+            onLogout();
+        } else {
+            logout(); // Fallback to context
+        }
     };
 
     return (
         <div className="min-h-screen p-6 flex flex-col items-center gap-6 relative">
-            <Toaster position="top-center" richColors />
+
             {showConfetti && <Confetti recycle={true} numberOfPieces={200} />}
 
             <BreathingModal isOpen={isBreathingOpen} onClose={() => setIsBreathingOpen(false)} />
@@ -365,14 +461,21 @@ const StudentDashboard = () => {
                 <h1 className="text-3xl font-bold text-slate-700">
                     Hi, {studentName}! <span className="text-2xl">👋</span>
                 </h1>
-                <div className="flex gap-4">
+                <div className="flex flex-wrap justify-center gap-4">
                     <Button
                         onClick={handleCalmDown}
                         className="bg-teal-400 hover:bg-teal-500 text-white font-semibold shadow-lg hover:shadow-xl transition-all"
                     >
                         🧘 Calm Down
                     </Button>
-                    <SOSButton />
+                    <SOSButton studentName={studentName} onTrigger={() => onTriggerSOS && onTriggerSOS(studentName)} />
+                    <Button
+                        variant="ghost"
+                        onClick={handleLogoutClick}
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50 font-semibold transition-colors"
+                    >
+                        Log Out
+                    </Button>
                 </div>
             </header>
 
@@ -420,16 +523,16 @@ const StudentDashboard = () => {
                     </Card>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {/* Weekly Mood History */}
+                        {/* History Timeline */}
                         <Card className="bg-white/60 backdrop-blur-md border border-white/40 shadow-xl shadow-indigo-100">
                             <CardHeader>
                                 <CardTitle className="text-slate-700 flex items-center gap-2">
                                     <Calendar className="w-5 h-5 text-indigo-500" />
-                                    Weekly History
+                                    History Timeline
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-                                <MoodHistoryList history={history} />
+                                <MoodHistoryList history={history} onDelete={handleDeleteHistory} />
                             </CardContent>
                         </Card>
 
@@ -462,9 +565,46 @@ const StudentDashboard = () => {
 
                 {/* Right Column */}
                 <div className="flex flex-col gap-6 lg:h-full">
-                    {/* Wellness Buddy */}
-                    <div className="flex-1 min-h-[400px]">
-                        <WellnessBuddy />
+                    {/* Chat Section */}
+                    <div className="flex-1 min-h-[400px] flex flex-col h-full">
+                        {/* Tab Switcher */}
+                        <div className="flex bg-white/70 p-1 rounded-xl border border-white/50 shadow-sm mb-3">
+                            <button
+                                onClick={() => setActiveChatTab('ai')}
+                                className={cn(
+                                    "flex-1 py-2 text-sm font-bold rounded-lg transition-all",
+                                    activeChatTab === 'ai' 
+                                        ? "bg-blue-100 text-blue-700 shadow-sm" 
+                                        : "text-slate-500 hover:bg-slate-50/50"
+                                )}
+                            >
+                                Wellness Buddy ⭐
+                            </button>
+                            <button
+                                onClick={() => setActiveChatTab('teacher')}
+                                className={cn(
+                                    "flex-1 py-2 text-sm font-bold rounded-lg transition-all",
+                                    activeChatTab === 'teacher' 
+                                        ? "bg-indigo-100 text-indigo-700 shadow-sm" 
+                                        : "text-slate-500 hover:bg-slate-50/50"
+                                )}
+                            >
+                                Teacher 👨‍🏫
+                            </button>
+                        </div>
+
+                        {/* Chat Content */}
+                        <div className="flex-1 min-h-[400px]">
+                            {activeChatTab === 'ai' ? (
+                                <WellnessBuddy 
+                                    studentName={studentName} 
+                                    history={history} 
+                                    moodContext={mood ? `Student is currently feeling ${mood}.` : "No mood selected yet."} 
+                                />
+                            ) : (
+                                <TeacherChat studentName={studentName} />
+                            )}
+                        </div>
                     </div>
 
                     {/* Gamification Widget */}

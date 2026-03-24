@@ -1,18 +1,81 @@
 import React, { useState, useEffect } from 'react';
-import { Toaster, toast } from 'sonner';
-import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import {
     LayoutDashboard, Users, Bell, Settings as SettingsIcon, LogOut, Search,
-    TrendingUp, AlertCircle, Clock, ChevronRight, Menu, Flame
+    TrendingUp, AlertCircle, ChevronRight, Flame
 } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
+import { 
+    PieChart, Pie, Cell, ResponsiveContainer, Tooltip, 
+    BarChart, Bar, XAxis, YAxis, CartesianGrid, 
+    AreaChart, Area 
+} from 'recharts';
 import { AnimatePresence, motion } from 'framer-motion';
 import StudentDetail from '@/components/StudentDetail';
 import StudentDirectory from '@/components/StudentDirectory';
 import Settings from '@/components/Settings';
 import Alerts from '@/components/Alerts';
+import { useAuth } from '../context/AuthContext';
 
-// Reusable Components
+// ─── Persistent AudioContext for Global Alarm ──────────────────
+let sharedAudioCtx = null;
+const getAudioContext = () => {
+    if (!sharedAudioCtx) {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (AudioContext) {
+            sharedAudioCtx = new AudioContext();
+        }
+    }
+    return sharedAudioCtx;
+};
+
+const playGlobalAlarm = async () => {
+    const ctx = getAudioContext();
+    if (!ctx) return false;
+
+    const playTone = () => {
+        try {
+            const now = ctx.currentTime;
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+
+            osc.frequency.setValueAtTime(880, now);
+            gain.gain.setValueAtTime(0.5, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+            osc.start(now);
+            osc.stop(now + 0.2);
+
+            const osc2 = ctx.createOscillator();
+            const gain2 = ctx.createGain();
+            osc2.connect(gain2);
+            gain2.connect(ctx.destination);
+            osc2.frequency.setValueAtTime(880, now + 0.3);
+            gain2.gain.setValueAtTime(0.5, now + 0.3);
+            gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+            osc2.start(now + 0.3);
+            osc2.stop(now + 0.5);
+
+            return true;
+        } catch (e) {
+            console.error("Global alarm failed", e);
+            return false;
+        }
+    };
+
+    if (ctx.state === 'suspended') {
+        try {
+            await ctx.resume();
+            return playTone();
+        } catch {
+            return false;
+        }
+    } else {
+        return playTone();
+    }
+};
+
+// ─── Reusable Components ───────────────────────────────────────
 const SidebarItem = ({ icon: Icon, label, active, onClick }) => (
     <button
         onClick={onClick}
@@ -27,106 +90,206 @@ const SidebarItem = ({ icon: Icon, label, active, onClick }) => (
 );
 
 const StatCard = ({ title, children, className }) => (
-    <div className={`bg-white p-6 rounded-xl shadow-sm border border-slate-200 ${className}`}>
+    <div className={`bg-white p-6 rounded-xl shadow-sm border border-slate-200 ${className || ''}`}>
         <h3 className="text-slate-500 text-sm font-semibold mb-4 uppercase tracking-wider">{title}</h3>
         {children}
     </div>
 );
 
-// Mock Data for Activity Feed (Since we don't have a backend for this yet)
+// Mock Data for Activity Feed
 const RECENT_ACTIVITY = [
     { id: 1, text: "Alice completed a mindfulness exercise", time: "2m ago", icon: "🧘‍♀️" },
     { id: 2, text: "Bob submitted a daily check-in", time: "15m ago", icon: "📝" },
     { id: 3, text: "Charlie reached a 7-day streak!", time: "1h ago", icon: "🔥" },
 ];
 
-const TeacherDashboard = () => {
-    const navigate = useNavigate();
+const TREND_DATA = [
+    { date: 'Mon', average: 75, engagement: 60 },
+    { date: 'Tue', average: 82, engagement: 70 },
+    { date: 'Wed', average: 78, engagement: 65 },
+    { date: 'Thu', average: 85, engagement: 80 },
+    { date: 'Fri', average: 90, engagement: 85 },
+    { date: 'Sat', average: 88, engagement: 75 },
+    { date: 'Sun', average: 92, engagement: 90 },
+];
+
+// ─── TeacherDashboard (Props-Driven) ───────────────────────────
+const TeacherDashboard = ({ students, onAddStudent, onUpdateStudent, onLogout, alerts }) => {
+    const { user } = useAuth();
     const [selectedStudentId, setSelectedStudentId] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [activeView, setActiveView] = useState('dashboard');
-    const [students, setStudents] = useState([]);
-    const [loading, setLoading] = useState(true);
 
-    // MOCK DATA FALLBACK (For demo purposes when API is not connected)
-    const MOCK_STUDENTS = [
-        { _id: '1', username: "Alice Johnson", grade: "10-A", risk: "Low", status: "Happy", level: 5, streak: 12, email: "alice@school.edu", avatar: "👩‍🎓" },
-        { _id: '2', username: "Bob Smith", grade: "10-B", risk: "High", status: "Sad", level: 2, streak: 0, email: "bob@school.edu", avatar: "👨‍🎓" },
-        { _id: '3', username: "Charlie Brown", grade: "10-A", risk: "Medium", status: "Tired", level: 3, streak: 4, email: "charlie@school.edu", avatar: "🧑‍🎓" },
-        { _id: '4', username: "Diana Prince", grade: "11-C", risk: "Low", status: "Happy", level: 4, streak: 8, email: "diana@school.edu", avatar: "🦸‍♀️" },
-        { _id: '5', username: "Evan Wright", grade: "10-B", risk: "High", status: "Anxious", level: 1, streak: 0, email: "evan@school.edu", avatar: "🏃‍♂️" },
-        { _id: '6', username: "Fiona Gallagher", grade: "11-A", risk: "Medium", status: "Stressed", level: 2, streak: 2, email: "fiona@school.edu", avatar: "🎨" },
-        { _id: '7', username: "George Martin", grade: "12-B", risk: "Low", status: "Calm", level: 3, streak: 15, email: "george@school.edu", avatar: "🦁" },
-        { _id: '8', username: "Hannah Lee", grade: "10-A", risk: "Low", status: "Happy", level: 5, streak: 20, email: "hannah@school.edu", avatar: "⛸️" },
-        { _id: '9', username: "Ian Curtis", grade: "12-A", risk: "High", status: "Sad", level: 1, streak: 0, email: "ian@school.edu", avatar: "🎸" },
-        { _id: '10', username: "Julia Roberts", grade: "11-B", risk: "Medium", status: "Tired", level: 3, streak: 3, email: "julia@school.edu", avatar: "🎭" }
-    ];
-
-    // Fetch Students
-    useEffect(() => {
-        const fetchStudents = async () => {
-            // Load custom students from local storage
-            let customStudents = JSON.parse(localStorage.getItem('custom_students') || '[]');
-
-            // Deduplicate custom students on load (based on email or username)
-            const uniqueCustom = customStudents.filter((student, index, self) =>
-                index === self.findIndex((t) => (
-                    t.email === student.email || t.username === student.username
-                ))
-            );
-
-            if (uniqueCustom.length !== customStudents.length) {
-                console.log("Cleaned up duplicates in localStorage");
-                localStorage.setItem('custom_students', JSON.stringify(uniqueCustom));
-                customStudents = uniqueCustom;
-            }
-
-            try {
-                const response = await fetch('http://localhost:5000/api/students');
-                if (!response.ok) throw new Error('Network response was not ok');
-                const data = await response.json();
-
-                // Merge API data with custom local data, ensuring no duplicates across sources
-                const apiIds = new Set(data.map(s => s.email));
-                const nonDuplicateCustom = customStudents.filter(s => !apiIds.has(s.email));
-
-                setStudents(data.length > 0 ? [...data, ...nonDuplicateCustom] : [...MOCK_STUDENTS, ...customStudents]);
-                setLoading(false);
-            } catch (error) {
-                console.warn("API Error, using mock data:", error);
-                // Merge Mock data with custom local data
-                setStudents([...MOCK_STUDENTS, ...customStudents]);
-                setLoading(false);
-            }
-        };
-        fetchStudents();
-    }, [activeView]); // Refresh when view changes
-
-    const handleAddStudent = (newStudent) => {
-        // Check for duplicates
-        const exists = students.some(s =>
-            s.email.toLowerCase() === newStudent.email.toLowerCase() ||
-            s.username.toLowerCase() === newStudent.username.toLowerCase()
-        );
-
-        if (exists) {
-            toast.error("Student already exists!");
-            return false;
+    // ── Dynamic Teacher Identity ──────────────────────────────────
+    const getStoredName = () => {
+        // Primary: read from the user JSON object written by AuthContext
+        let storedUser = {};
+        try {
+            storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+        } catch (error) {
+            console.warn('Failed to parse stored user for teacher name:', error);
         }
-
-        // Add Logic
-        const updatedStudents = [...students, newStudent];
-        setStudents(updatedStudents);
-
-        // Persist to LocalStorage
-        const existingCustom = JSON.parse(localStorage.getItem('custom_students') || '[]');
-        localStorage.setItem('custom_students', JSON.stringify([...existingCustom, newStudent]));
-
-        toast.success("Student Added Successfully! ✅");
-        return true;
+        if (storedUser.username || storedUser.name) return storedUser.username || storedUser.name;
+        // Fallback: individual keys
+        return localStorage.getItem('teacher_name') || localStorage.getItem('username') || 'Teacher';
     };
 
-    // Dynamic Stats
+    const getStoredEmail = () => {
+        let storedUser = {};
+        try {
+            storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+        } catch (error) {
+            console.warn('Failed to parse stored user for teacher email:', error);
+        }
+        if (storedUser.email) return storedUser.email;
+        return localStorage.getItem('teacher_email') || localStorage.getItem('email') || '';
+    };
+
+    const [teacherName, setTeacherName] = useState(getStoredName);
+    const [teacherEmail, setTeacherEmail] = useState(getStoredEmail);
+
+    // Sync whenever localStorage changes (e.g. after login in another tab)
+    useEffect(() => {
+        const syncUser = () => {
+            setTeacherName(getStoredName());
+            setTeacherEmail(getStoredEmail());
+        };
+        syncUser(); // run once on mount to ensure freshness
+        window.addEventListener('storage', syncUser);
+        return () => window.removeEventListener('storage', syncUser);
+    }, []);
+
+    const getGreeting = () => {
+        const hour = new Date().getHours();
+        if (hour < 12) return 'Good Morning';
+        if (hour < 17) return 'Good Afternoon';
+        return 'Good Evening';
+    };
+
+    // Global Alarm State
+    const processedAlertIds = React.useRef(new Set());
+    const [unreadAlertCount, setUnreadAlertCount] = useState(0);
+    const [activeEmergencies, setActiveEmergencies] = useState([]);
+    const [audioEnabled, setAudioEnabled] = useState(false);
+
+    // Initialize Audio
+    const handleEnableAudio = async () => {
+        const ctx = getAudioContext();
+        if (ctx) {
+            try {
+                await ctx.resume();
+                setAudioEnabled(true);
+                toast.success("Audio alarms enabled! You will now hear SOS sounds.");
+                
+                // Play a short test beep
+                const osc = ctx.createOscillator();
+                const gainNode = ctx.createGain();
+                osc.connect(gainNode);
+                gainNode.connect(ctx.destination);
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(800, ctx.currentTime);
+                gainNode.gain.setValueAtTime(0.1, ctx.currentTime);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.1);
+            } catch (e) {
+                console.error("Failed to enable audio", e);
+            }
+        }
+    };
+
+    // Global Alarm Polling
+    useEffect(() => {
+        const checkAlerts = async () => {
+            let localAlerts = [];
+            // 1. Try fetching from Backend via API
+            try {
+                const res = await fetch('/api/alerts', {
+                    headers: user?.token ? { Authorization: `Bearer ${user.token}` } : {}
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (Array.isArray(data)) {
+                        localAlerts = [...data];
+                    }
+                }
+            } catch (e) {
+                console.error("Backend fetch failed, falling back to localStorage", e);
+            }
+
+            // 2. Try fetching from LocalStorage (Fallback / Legacy)
+            try {
+                const stored = localStorage.getItem('teacher_alerts');
+                if (stored) {
+                    const parsed = JSON.parse(stored);
+                    if (Array.isArray(parsed)) {
+                        // Merge backend and local storage alerts without duplicates
+                        localAlerts = [...localAlerts, ...parsed];
+                    }
+                }
+            } catch (error) {
+                console.warn('Failed to parse teacher_alerts:', error);
+            }
+
+            const mergedAlerts = [...(alerts || []), ...localAlerts];
+            
+            // Deduplicate for accurate count
+            const uniqueAlerts = Array.from(new Map(mergedAlerts.map(item => [item.id, item])).values());
+            const unreadCount = uniqueAlerts.filter(a => a.status === "Unread").length;
+            setUnreadAlertCount(unreadCount);
+
+            const unreadEmergencies = uniqueAlerts.filter(a => a.severity === "High" && a.status === "Unread");
+            setActiveEmergencies(unreadEmergencies);
+            
+            const newEmergencies = unreadEmergencies.filter(a => !processedAlertIds.current.has(a.id));
+
+            console.log("[DEBUG TeacherDashboard] Polling alerts...", { 
+                propAlertsReceived: alerts?.length || 0,
+                localAlertsFound: localAlerts.length, 
+                uniqueCount: uniqueAlerts.length, 
+                unreadEmergencies: unreadEmergencies.length,
+                newEmergenciesFound: newEmergencies.length 
+            });
+
+            if (newEmergencies.length > 0) {
+                console.log("[DEBUG TeacherDashboard] Firing alarm for new emergencies!", newEmergencies);
+                newEmergencies.forEach(a => {
+                    processedAlertIds.current.add(a.id);
+                    // Also show a massive persistent toast for the emergency
+                    toast.error(`EMERGENCY: ${a.student} triggered an SOS!`, {
+                        description: a.message,
+                        duration: 10000, 
+                        icon: '🚨'
+                    });
+                });
+                
+                // Play the robust Web Audio API alarm
+                playGlobalAlarm();
+
+                // Speech Synthesis Backup (Often bypasses some autoplay restrictions if triggered by state changes)
+                try {
+                    const msg = new SpeechSynthesisUtterance("Emergency Alert! SOS triggered!");
+                    msg.volume = 1;
+                    msg.rate = 1.1;
+                    msg.pitch = 1.2;
+                    window.speechSynthesis.speak(msg);
+                } catch (error) {
+                    console.warn('Speech synthesis failed:', error);
+                }
+                
+                // Fallback standard Audio
+                const alarm = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
+                alarm.volume = 1.0;
+                alarm.play().catch(e => console.log("Audio play blocked by browser. User interaction needed.", e));
+            }
+        };
+
+        const interval = setInterval(checkAlerts, 2000);
+        checkAlerts();
+
+        return () => clearInterval(interval);
+    }, [alerts, user?.token]);
+
+    // ─── Dynamic Stats (computed from students prop) ────────────
     const moodCounts = students.reduce((acc, student) => {
         const mood = student.status || 'Happy';
         acc[mood] = (acc[mood] || 0) + 1;
@@ -138,15 +301,42 @@ const TeacherDashboard = () => {
         { name: 'Calm', value: moodCounts['Calm'] || 0, color: '#2dd4bf' },
         { name: 'Tired', value: moodCounts['Tired'] || 0, color: '#fbbf24' },
         { name: 'Sad', value: moodCounts['Sad'] || 0, color: '#f87171' },
+        { name: 'Stressed', value: moodCounts['Stressed'] || 0, color: '#fb923c' },
+        { name: 'Anxious', value: moodCounts['Anxious'] || 0, color: '#a78bfa' },
     ].filter(item => item.value > 0);
 
     const highRiskCount = students.filter(s => s.risk === 'High').length;
+    const mediumRiskCount = students.filter(s => s.risk === 'Medium').length;
+    const lowRiskCount = students.filter(s => s.risk === 'Low' || s.risk === 'Stable').length;
+
+    const RISK_DATA = [
+        { name: 'High', value: highRiskCount, color: '#f87171' },
+        { name: 'Medium', value: mediumRiskCount, color: '#fbbf24' },
+        { name: 'Stable', value: lowRiskCount, color: '#4ade80' },
+    ];
 
     // Filter Students
     const filteredStudents = students.filter(student =>
         (student.username || "").toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+    // ─── Handle Add Student (delegates to parent) ──────────────
+    const handleAddStudent = (newStudent) => {
+        const success = onAddStudent(newStudent);
+        if (success) {
+            toast.success("Student Added Successfully! ✅");
+        } else {
+            toast.error("Student already exists!");
+        }
+        return success;
+    };
+
+    // ─── Find selected student (handles both _id and id) ───────
+    const selectedStudent = selectedStudentId
+        ? students.find(s => (s._id || s.id) == selectedStudentId)
+        : null;
+
+    // ─── Render Content Based on Sidebar ────────────────────────
     const renderContent = () => {
         switch (activeView) {
             case 'dashboard':
@@ -180,7 +370,7 @@ const TeacherDashboard = () => {
                                         </span>
                                     </div>
                                 </div>
-                                <div className="flex justify-center gap-4 mt-2">
+                                <div className="flex justify-center gap-4 mt-2 flex-wrap">
                                     {MOOD_DATA.map((item) => (
                                         <div key={item.name} className="flex items-center gap-1">
                                             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
@@ -190,41 +380,75 @@ const TeacherDashboard = () => {
                                 </div>
                             </StatCard>
 
-                            {/* Risk Radar */}
-                            <StatCard title="Risk Radar" className="border-l-4 border-l-red-400">
-                                <div className="flex flex-col h-full justify-between">
-                                    <div>
-                                        <div className="flex items-center gap-3 mb-2">
-                                            <div className="p-2 bg-red-100 rounded-full text-red-500">
-                                                <AlertCircle size={24} />
-                                            </div>
-                                            <span className="text-3xl font-bold text-slate-800">{highRiskCount}</span>
-                                        </div>
-                                        <p className="text-slate-500 mb-4">Students flagged with <span className="font-semibold text-red-500">High Risk</span> patterns.</p>
+                            {/* Risk Overview (Bar Chart) */}
+                            <StatCard title="Risk Overview">
+                                <div className="h-40">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart data={RISK_DATA}>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                            <XAxis 
+                                                dataKey="name" 
+                                                axisLine={false} 
+                                                tickLine={false} 
+                                                tick={{ fill: '#64748b', fontSize: 10 }}
+                                            />
+                                            <YAxis hide />
+                                            <Tooltip 
+                                                cursor={{ fill: '#f8fafc' }}
+                                                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                            />
+                                            <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                                                {RISK_DATA.map((entry, index) => (
+                                                    <Cell key={`cell-${index}`} fill={entry.color} />
+                                                ))}
+                                            </Bar>
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
+                                <div className="mt-4 flex justify-between items-center bg-slate-50 p-2 rounded-lg border border-slate-100">
+                                    <div className="flex items-center gap-2">
+                                        <div className="p-1 bg-red-100 rounded text-red-500"><AlertCircle size={14} /></div>
+                                        <span className="text-xs font-bold text-slate-700">{highRiskCount} Urgent Cases</span>
                                     </div>
-                                    <button
-                                        onClick={() => { setSearchTerm(''); setActiveView('students'); }} // Simple navigation
-                                        className="w-full py-2 bg-red-50 text-red-600 font-semibold rounded-lg hover:bg-red-100 transition-colors"
+                                    <button 
+                                        onClick={() => setActiveView('students')}
+                                        className="text-[10px] font-bold text-indigo-600 hover:text-indigo-700 uppercase"
                                     >
-                                        View High Risk Students
+                                        Details
                                     </button>
                                 </div>
                             </StatCard>
 
-                            {/* Activity Feed */}
-                            <StatCard title="Live Activity" className="overflow-hidden">
-                                <div className="space-y-4">
-                                    {RECENT_ACTIVITY.map((activity) => (
-                                        <div key={activity.id} className="flex items-start gap-3">
-                                            <span className="text-xl">{activity.icon}</span>
-                                            <div>
-                                                <p className="text-sm text-slate-700 font-medium leading-tight">{activity.text}</p>
-                                                <span className="text-xs text-slate-400 flex items-center gap-1 mt-1">
-                                                    <Clock size={10} /> {activity.time}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    ))}
+                            {/* Class Wellness / Mood Trends (Area Chart) */}
+                            <StatCard title="Engagement Trends">
+                                <div className="h-44">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <AreaChart data={TREND_DATA}>
+                                            <defs>
+                                                <linearGradient id="colorAvg" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.1}/>
+                                                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                                                </linearGradient>
+                                            </defs>
+                                            <Tooltip 
+                                                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                            />
+                                            <Area 
+                                                type="monotone" 
+                                                dataKey="engagement" 
+                                                stroke="#6366f1" 
+                                                strokeWidth={2}
+                                                fillOpacity={1} 
+                                                fill="url(#colorAvg)" 
+                                            />
+                                        </AreaChart>
+                                    </ResponsiveContainer>
+                                </div>
+                                <div className="flex items-center justify-between mt-2">
+                                    <span className="text-[10px] text-slate-400">Class Average Engagement</span>
+                                    <span className="text-xs font-bold text-emerald-500 flex items-center gap-1">
+                                        <TrendingUp size={12} /> +12%
+                                    </span>
                                 </div>
                             </StatCard>
                         </div>
@@ -332,11 +556,16 @@ const TeacherDashboard = () => {
                     </>
                 );
             case 'students':
-                return <StudentDirectory students={students} onAddStudent={handleAddStudent} />;
+                return <StudentDirectory students={students} onAddStudent={handleAddStudent} onUpdateStudent={onUpdateStudent} />;
             case 'alerts':
-                return <Alerts />;
+                return <Alerts incomingAlerts={alerts} />;
             case 'settings':
-                return <Settings onSave={() => setActiveView('dashboard')} />;
+                return (
+                    <Settings
+                        onAddStudent={handleAddStudent}
+                        onSave={() => setActiveView('dashboard')}
+                    />
+                );
             default:
                 return null;
         }
@@ -344,12 +573,12 @@ const TeacherDashboard = () => {
 
     return (
         <div className="min-h-screen bg-slate-50 flex font-sans text-slate-800">
-            <Toaster position="top-center" richColors />
+
             {/* 1. Modal / Slide-over (StudentDetail) */}
             <AnimatePresence>
-                {selectedStudentId && (
+                {selectedStudent && (
                     <StudentDetail
-                        student={students.find(s => s._id === selectedStudentId)}
+                        student={selectedStudent}
                         onClose={() => setSelectedStudentId(null)}
                     />
                 )}
@@ -373,7 +602,7 @@ const TeacherDashboard = () => {
 
                 <div className="p-4 border-t border-slate-100">
                     <button
-                        onClick={() => navigate('/login')}
+                        onClick={onLogout}
                         className="w-full flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
                     >
                         <LogOut size={20} />
@@ -382,25 +611,73 @@ const TeacherDashboard = () => {
                 </div>
             </aside>
 
-            {/* 3. Main Content Content */}
+            {/* 3. Main Content */}
             <main className="flex-1 p-8 overflow-y-auto">
                 <header className="flex justify-between items-center mb-8">
                     <div>
-                        <h2 className="text-2xl font-bold text-slate-800">Good Morning, Mrs. Johnson</h2>
-                        <p className="text-slate-500">Here's what's happening in your classroom today.</p>
+                        <h2 className="text-2xl font-bold text-slate-800">
+                            {getGreeting()}, <span className="bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">{teacherName}</span> 👋
+                        </h2>
+                        <div className="flex items-center gap-2 text-slate-500 mt-1">
+                            <span className="text-sm">{teacherEmail}</span>
+                        </div>
+                        <p className="text-slate-500 text-sm mt-1">Here's what's happening in your classroom today.</p>
                     </div>
                     <div className="flex items-center gap-4">
-                        <div className="relative">
-                            <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
-                            <button className="p-2 bg-white rounded-full border border-slate-200 text-slate-500 hover:shadow-md transition-all">
+                        {!audioEnabled && (
+                            <button
+                                onClick={handleEnableAudio}
+                                title="Click to allow emergency alarms to play sound"
+                                className="animate-pulse flex items-center gap-2 px-3 py-1.5 bg-indigo-100 text-indigo-700 text-sm font-bold rounded-lg border border-indigo-200 hover:bg-indigo-200 transition-colors shadow-sm"
+                            >
+                                🔊 Enable Sound
+                            </button>
+                        )}
+                        <div className="relative flex items-center">
+                            {unreadAlertCount > 0 && (
+                                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white shadow-sm ring-2 ring-white animate-bounce">
+                                    {unreadAlertCount > 9 ? '9+' : unreadAlertCount}
+                                </span>
+                            )}
+                            <button
+                                onClick={() => setActiveView('alerts')}
+                                className="p-2 bg-white rounded-full border border-slate-200 text-slate-500 hover:shadow-md transition-all hover:bg-slate-50">
                                 <Bell size={20} />
                             </button>
                         </div>
-                        <div className="w-10 h-10 rounded-full bg-indigo-100 border-2 border-indigo-200 flex items-center justify-center text-indigo-700 font-bold">
-                            TE
-                        </div>
+                        <button
+                            onClick={() => setActiveView('settings')}
+                            className="w-10 h-10 rounded-full bg-indigo-100 border-2 border-indigo-200 flex items-center justify-center text-indigo-700 font-bold hover:shadow-md transition-all hover:border-indigo-300"
+                            title={teacherName}
+                        >
+                            {teacherName.substring(0, 2).toUpperCase()}
+                        </button>
                     </div>
                 </header>
+
+                {/* Emergency Banner */}
+                <AnimatePresence>
+                    {activeEmergencies.length > 0 && (
+                        <motion.div
+                            initial={{ opacity: 0, y: -20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="mb-8 p-4 bg-red-600 rounded-xl shadow-lg border-2 border-red-700 flex flex-col md:flex-row items-center justify-between gap-4 cursor-pointer hover:bg-red-700 transition-colors"
+                            onClick={() => setActiveView('alerts')}
+                        >
+                            <div className="flex items-center gap-4 text-white">
+                                <AlertCircle size={32} className="animate-pulse" />
+                                <div>
+                                    <h3 className="text-lg font-bold">ACTIVE EMERGENCY ALERTS ({activeEmergencies.length})</h3>
+                                    <p className="text-red-100 text-sm">{activeEmergencies[0].student} triggered an SOS. Please check Alerts immediately!</p>
+                                </div>
+                            </div>
+                            <button className="px-4 py-2 bg-white text-red-600 font-bold rounded-lg hover:bg-slate-50 shadow-sm transition-colors uppercase text-sm tracking-wider whitespace-nowrap">
+                                View Details
+                            </button>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
 
                 {renderContent()}
 
