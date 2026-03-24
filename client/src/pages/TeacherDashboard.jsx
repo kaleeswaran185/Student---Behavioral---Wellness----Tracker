@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import {
@@ -15,6 +16,7 @@ import StudentDirectory from '@/components/StudentDirectory';
 import Settings from '@/components/Settings';
 import Alerts from '@/components/Alerts';
 import { useAuth } from '../context/AuthContext';
+import { apiUrl } from '../lib/api';
 
 // ─── Persistent AudioContext for Global Alarm ──────────────────
 let sharedAudioCtx = null;
@@ -201,9 +203,8 @@ const TeacherDashboard = ({ students, onAddStudent, onUpdateStudent, onLogout, a
     useEffect(() => {
         const checkAlerts = async () => {
             let localAlerts = [];
-            // 1. Try fetching from Backend via API
             try {
-                const res = await fetch('/api/alerts', {
+                const res = await fetch(apiUrl('/api/alerts'), {
                     headers: user?.token ? { Authorization: `Bearer ${user.token}` } : {}
                 });
                 if (res.ok) {
@@ -213,21 +214,7 @@ const TeacherDashboard = ({ students, onAddStudent, onUpdateStudent, onLogout, a
                     }
                 }
             } catch (e) {
-                console.error("Backend fetch failed, falling back to localStorage", e);
-            }
-
-            // 2. Try fetching from LocalStorage (Fallback / Legacy)
-            try {
-                const stored = localStorage.getItem('teacher_alerts');
-                if (stored) {
-                    const parsed = JSON.parse(stored);
-                    if (Array.isArray(parsed)) {
-                        // Merge backend and local storage alerts without duplicates
-                        localAlerts = [...localAlerts, ...parsed];
-                    }
-                }
-            } catch (error) {
-                console.warn('Failed to parse teacher_alerts:', error);
+                console.error("Backend alert fetch failed", e);
             }
 
             const mergedAlerts = [...(alerts || []), ...localAlerts];

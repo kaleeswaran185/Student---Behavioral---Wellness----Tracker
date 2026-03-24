@@ -8,6 +8,7 @@ const checkInSchema = new mongoose.Schema({
     },
     mood: {
         type: String,
+        enum: ['Happy', 'Calm', 'Stressed', 'Tired', 'Sad', 'Anxious', 'Excited'],
         required: true
     },
     emoji: {
@@ -16,12 +17,14 @@ const checkInSchema = new mongoose.Schema({
     },
     note: {
         type: String,
-        default: ""
+        default: ''
     },
     timestamp: {
         type: Date,
         default: Date.now
     }
 });
+
+checkInSchema.index({ student: 1, timestamp: -1 });
 
 module.exports = mongoose.model('CheckIn', checkInSchema);

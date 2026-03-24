@@ -1,44 +1,40 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Send } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { apiRequest, getAuthHeaders } from '../lib/api';
 
-const TeacherChat = ({ studentName = "Student" }) => {
+const TeacherChat = ({ studentName = 'Student', studentId = null }) => {
     const { user } = useAuth();
     const [input, setInput] = useState('');
     const [messages, setMessages] = useState([]);
     const [isSending, setIsSending] = useState(false);
     const messagesEndRef = useRef(null);
 
-    const fetchMessages = async () => {
+    const loadMessages = useCallback(async () => {
         if (!user?.token) return;
         try {
-            const res = await fetch(`/api/messages/${encodeURIComponent(studentName)}`, {
-                headers: user?.token ? { Authorization: `Bearer ${user.token}` } : {}
+            const conversationKey = studentId || studentName;
+            const data = await apiRequest(`/api/messages/${encodeURIComponent(conversationKey)}`, {
+                headers: getAuthHeaders(user.token)
             });
-            if (res.ok) {
-                const data = await res.json();
-                setMessages(data);
-            }
+            setMessages(data);
         } catch (error) {
-            console.error("Failed to fetch messages:", error);
+            console.error('Failed to fetch messages:', error);
         }
-    };
+    }, [studentId, studentName, user?.token]);
 
-    // Poll for messages
     useEffect(() => {
-        if (!studentName || !user?.token) return;
-        
-        // Initial fetch
-        fetchMessages();
+        if (!(studentId || studentName) || !user?.token) return;
 
-        const interval = setInterval(fetchMessages, 2000);
+        loadMessages();
+
+        const interval = setInterval(loadMessages, 2000);
         return () => clearInterval(interval);
-    }, [studentName, user?.token]);
+    }, [loadMessages, studentId, studentName, user?.token]);
 
-    // Auto-scroll
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
@@ -49,10 +45,10 @@ const TeacherChat = ({ studentName = "Student" }) => {
         const userText = input.trim();
         setIsSending(true);
 
-        // Optimistic UI update
         const tempId = Date.now().toString();
         setMessages(prev => [...prev, {
             id: tempId,
+            studentId,
             studentName,
             sender: 'student',
             text: userText,
@@ -61,21 +57,21 @@ const TeacherChat = ({ studentName = "Student" }) => {
         setInput('');
 
         try {
-            await fetch('/api/messages', {
+            await apiRequest('/api/messages', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    ...(user?.token ? { Authorization: `Bearer ${user.token}` } : {})
+                    ...getAuthHeaders(user?.token)
                 },
                 body: JSON.stringify({
+                    studentId,
                     studentName,
                     text: userText
                 })
             });
-            // Refetch to get actual server state
-            fetchMessages();
+            await loadMessages();
         } catch (error) {
-            console.error("Failed to send message:", error);
+            console.error('Failed to send message:', error);
         } finally {
             setIsSending(false);
         }
@@ -86,7 +82,7 @@ const TeacherChat = ({ studentName = "Student" }) => {
             <CardHeader className="pb-2 border-b border-slate-100 bg-indigo-50/40">
                 <CardTitle className="flex items-center gap-2 text-primary">
                     <div className="relative">
-                        <span className="text-2xl">👨‍🏫</span>
+                        <span className="text-2xl">?????</span>
                         <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-white rounded-full animate-pulse"></div>
                     </div>
                     <div>
@@ -124,7 +120,7 @@ const TeacherChat = ({ studentName = "Student" }) => {
                 )}
                 <div ref={messagesEndRef} />
             </CardContent>
-            
+
             <CardFooter className="p-4 pt-3 flex flex-col gap-3 bg-white/40">
                 <div className="w-full flex gap-2">
                     <Input
@@ -135,10 +131,10 @@ const TeacherChat = ({ studentName = "Student" }) => {
                         disabled={isSending}
                         className="bg-white/80 border-slate-200 focus:ring-2 focus:ring-indigo-400 rounded-xl"
                     />
-                    <Button 
-                        size="icon" 
-                        onClick={handleSend} 
-                        disabled={isSending || !input.trim()} 
+                    <Button
+                        size="icon"
+                        onClick={handleSend}
+                        disabled={isSending || !input.trim()}
                         className="bg-indigo-600 hover:bg-indigo-700 shadow-md shrink-0 rounded-xl"
                     >
                         <Send className="h-4 w-4" />

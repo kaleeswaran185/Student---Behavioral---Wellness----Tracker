@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+/* eslint-disable no-unused-vars */
+import React, { useEffect, useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -7,14 +8,15 @@ import WellnessBuddy from '@/components/WellnessBuddy';
 import TeacherChat from '@/components/TeacherChat';
 import BreathingModal from '@/components/BreathingModal';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Award, Star, Zap, ChevronDown, ChevronUp, Calendar, Clock, Lock, History, Trash2 } from 'lucide-react';
+import { Award, Calendar, ChevronDown, ChevronUp, Lock, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Confetti from 'react-confetti';
 import { toast } from 'sonner';
 import { useAuth } from '../context/AuthContext';
+import { apiUrl } from '../lib/api';
 
 // Mock Data
-const initialMockData = [
+const _initialMockData = [
     { id: 1, date: 'Monday, Feb 10', time: '09:00 AM', mood: 'Happy', emoji: '😊', snippet: 'Had a great start to the week!', color: 'bg-green-100 text-green-700', type: 'Check-in' },
     { id: 2, date: 'Sunday, Feb 9', time: '02:30 PM', mood: 'Calm', emoji: '😌', snippet: 'Read a book and relaxed all afternoon.', color: 'bg-blue-100 text-blue-700', type: 'Check-in' },
     { id: 3, date: 'Saturday, Feb 8', time: '11:15 AM', mood: 'Happy', emoji: '😊', snippet: 'Played soccer with friends.', color: 'bg-green-100 text-green-700', type: 'Check-in' },
@@ -27,7 +29,7 @@ const moodOptions = [
     { label: 'Tired', emoji: '😴', color: 'bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-200', active: 'ring-4 ring-amber-300 ring-offset-2' },
 ];
 
-const getCurrentTime = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+const _getCurrentTime = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
 const MoodHistoryList = ({ history, onDelete }) => {
     const [expandedId, setExpandedId] = useState(null);
@@ -133,7 +135,21 @@ const MoodHistoryList = ({ history, onDelete }) => {
     );
 };
 
-const AchievementsCard = ({ xp, level, streak, achievements }) => {
+const fetchStudentHistory = async (token) => {
+    const res = await fetch(apiUrl('/api/history'), {
+        headers: {
+            Authorization: `Bearer ${token}`
+        }
+    });
+
+    if (!res.ok) {
+        throw new Error('Failed to fetch history');
+    }
+
+    return res.json();
+};
+
+const AchievementsCard = ({ xp, level, achievements }) => {
     return (
         <Card className="bg-white/60 backdrop-blur-md border border-white/40 shadow-xl shadow-indigo-100">
             <CardHeader className="pb-2">
@@ -214,46 +230,52 @@ const StudentDashboard = ({ onLogout, onTriggerSOS }) => {
     const [journalEntry, setJournalEntry] = useState('');
     const [isBreathingOpen, setIsBreathingOpen] = useState(false);
     const [showConfetti, setShowConfetti] = useState(false);
-    const [studentName, setStudentName] = useState("Student");
     const [activeChatTab, setActiveChatTab] = useState('ai');
-
-    useEffect(() => {
-        if (user && user.username) {
-            setStudentName(user.username);
-        } else {
-            const storedName = localStorage.getItem('student_name');
-            if (storedName) {
-                setStudentName(storedName);
-            }
-        }
-    }, [user]);
+    const studentName = user?.username || localStorage.getItem('student_name') || 'Student';
 
     const [xp, setXp] = useState(() => parseInt(localStorage.getItem('xp')) || 750);
     const [level, setLevel] = useState(() => parseInt(localStorage.getItem('level')) || 2);
     const [streak, setStreak] = useState(() => parseInt(localStorage.getItem('streak')) || 1);
     const [history, setHistory] = useState([]);
 
-    const fetchHistory = async () => {
+    const refreshHistory = async () => {
+        if (!user?.token) {
+            setHistory([]);
+            return;
+        }
+
         try {
-            const res = await fetch('/api/history', {
-                headers: {
-                    Authorization: `Bearer ${user.token}`
-                }
-            });
-            if (res.ok) {
-                const data = await res.json();
-                setHistory(data);
-            }
+            const data = await fetchStudentHistory(user.token);
+            setHistory(data);
         } catch (error) {
             console.error("Failed to fetch history:", error);
         }
     };
 
     useEffect(() => {
-        if (user) {
-            fetchHistory();
+        if (!user?.token) {
+            return;
         }
-    }, [user]);
+
+        let isCancelled = false;
+
+        const loadHistory = async () => {
+            try {
+                const data = await fetchStudentHistory(user.token);
+                if (!isCancelled) {
+                    setHistory(data);
+                }
+            } catch (error) {
+                console.error("Failed to fetch history:", error);
+            }
+        };
+
+        loadHistory();
+
+        return () => {
+            isCancelled = true;
+        };
+    }, [user?.token]);
 
     // 1. Achievements State (Manual for Zen Master & Streak Star)
     const [achievements, setAchievements] = useState(() => {
@@ -371,7 +393,7 @@ const StudentDashboard = ({ onLogout, onTriggerSOS }) => {
         
         const saveCheckin = async () => {
             try {
-                await fetch('/api/history/checkin', {
+                await fetch(apiUrl('/api/history/checkin'), {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -383,7 +405,7 @@ const StudentDashboard = ({ onLogout, onTriggerSOS }) => {
                         note: "Check-in"
                     })
                 });
-                fetchHistory(); // Refresh timeline from backend
+                refreshHistory();
             } catch (error) {
                 console.error("Failed to save checkin:", error);
             }
@@ -394,7 +416,7 @@ const StudentDashboard = ({ onLogout, onTriggerSOS }) => {
 
     const handleDeleteHistory = async (type, id) => {
         try {
-            const res = await fetch(`/api/history/${type}/${id}`, {
+            const res = await fetch(apiUrl(`/api/history/${type}/${id}`), {
                 method: 'DELETE',
                 headers: {
                     Authorization: `Bearer ${user.token}`
@@ -402,7 +424,7 @@ const StudentDashboard = ({ onLogout, onTriggerSOS }) => {
             });
             if (res.ok) {
                 toast.success("Entry removed");
-                fetchHistory();
+                refreshHistory();
             } else {
                 toast.error("Failed to delete entry");
             }
@@ -420,7 +442,7 @@ const StudentDashboard = ({ onLogout, onTriggerSOS }) => {
         const selectedOption = moodOptions.find(opt => opt.label === mood);
 
         try {
-            await fetch('/api/history/journal', {
+            await fetch(apiUrl('/api/history/journal'), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -432,7 +454,7 @@ const StudentDashboard = ({ onLogout, onTriggerSOS }) => {
                     emoji: selectedOption ? selectedOption.emoji : '📝'
                 })
             });
-            fetchHistory(); // Refresh timeline from backend
+            refreshHistory();
             setJournalEntry('');
             toast.success("Journal entry saved securely.");
         } catch (error) {
@@ -602,7 +624,7 @@ const StudentDashboard = ({ onLogout, onTriggerSOS }) => {
                                     moodContext={mood ? `Student is currently feeling ${mood}.` : "No mood selected yet."} 
                                 />
                             ) : (
-                                <TeacherChat studentName={studentName} />
+                                <TeacherChat studentName={studentName} studentId={user?._id} />
                             )}
                         </div>
                     </div>

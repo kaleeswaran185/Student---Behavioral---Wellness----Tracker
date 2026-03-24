@@ -1,5 +1,7 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { toast } from 'sonner';
+import { apiUrl } from '../lib/api';
 
 const AuthContext = createContext();
 
@@ -26,7 +28,7 @@ export const AuthProvider = ({ children }) => {
 
     const login = async (email, password) => {
         try {
-            const res = await fetch('/api/auth/login', {
+            const res = await fetch(apiUrl('/api/auth/login'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password })
@@ -48,12 +50,12 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    const register = async (username, email, password, role) => {
+    const register = async (username, email, password) => {
         try {
-            const res = await fetch('/api/auth/register', {
+            const res = await fetch(apiUrl('/api/auth/register'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, email, password, role })
+                body: JSON.stringify({ username, email, password })
             });
 
             const data = await res.json();

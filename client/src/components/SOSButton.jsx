@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../context/AuthContext';
+import { apiRequest, getAuthHeaders } from '../lib/api';
 
 const SOSButton = ({ onTrigger, studentName }) => {
     const { user } = useAuth();
@@ -16,11 +17,11 @@ const SOSButton = ({ onTrigger, studentName }) => {
 
         setLoading(true);
         try {
-            const response = await fetch('/api/sos', {
+            await apiRequest('/api/alerts/sos', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    Authorization: `Bearer ${user.token}`
+                    ...getAuthHeaders(user.token)
                 },
                 body: JSON.stringify({
                     alert: {
@@ -31,11 +32,6 @@ const SOSButton = ({ onTrigger, studentName }) => {
                     }
                 })
             });
-
-            if (!response.ok) {
-                const failedData = await response.json().catch(() => ({}));
-                throw new Error(failedData.message || 'Failed to send SOS alert.');
-            }
 
             if (onTrigger) {
                 onTrigger();
@@ -63,9 +59,8 @@ const SOSButton = ({ onTrigger, studentName }) => {
                 disabled={loading}
             >
                 {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <AlertCircle className="h-5 w-5" />}
-                {loading ? "Sending..." : "SOS / HELP"}
+                {loading ? 'Sending...' : 'SOS / HELP'}
             </Button>
-            {/* Local Toaster in case Dashboard one isn't reachable, though usually it's at App level */}
         </>
     );
 };

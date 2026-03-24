@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import React, { useState } from 'react';
 import { X, Flame, Trophy, AlertTriangle, Filter, Smile, Frown, Meh, History } from 'lucide-react';
 import { 
@@ -6,6 +7,7 @@ import {
 } from 'recharts';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useDemoMode } from '../config/runtime';
 
 // 1. HELPERS FOR DYNAMIC DATA
 const hashCode = (str) => {
@@ -83,11 +85,12 @@ const getMoodIcon = (mood) => {
 
 const StudentDetail = ({ student, onClose }) => {
     const [filter, setFilter] = useState('ALL');
+    const demoMode = useDemoMode;
 
     // 2. DYNAMIC DATA LOOKUP
     const sId = student?._id || student?.id || "unknown";
     const numericId = parseInt(sId, 10);
-    const mockRecord = STUDENT_RECORDS[numericId] || null;
+    const mockRecord = demoMode ? STUDENT_RECORDS[numericId] || null : null;
 
     const hash = hashCode(String(sId));
     const colorPair = STUDENT_COLORS[hash % STUDENT_COLORS.length];
@@ -117,7 +120,9 @@ const StudentDetail = ({ student, onClose }) => {
     // Use the resolved record for graph/history data
     const themeColor = record.themeColor;
     const moodGraphData = record.moodData;
-    const historyData = record.history;
+    const historyData = !demoMode && Array.isArray(student?.history) && student.history.length > 0
+        ? student.history
+        : record.history;
 
     const filteredHistory = historyData.filter(item => {
         if (filter === 'ALL') return true;

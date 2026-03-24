@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
-import Login from './pages/Login';
-import TeacherDashboard from './pages/TeacherDashboard';
-import StudentDashboard from './pages/StudentDashboard';
+import React, { Suspense, lazy, useState } from 'react';
 import { useAuth } from './context/AuthContext';
+import { useDemoMode } from './config/runtime';
+import { apiUrl } from './lib/api';
 import { Toaster } from 'sonner';
+
+const Login = lazy(() => import('./pages/Login'));
+const TeacherDashboard = lazy(() => import('./pages/TeacherDashboard'));
+const StudentDashboard = lazy(() => import('./pages/StudentDashboard'));
 
 // ─── Error Boundary ───────────────────────────────────────────
 class ErrorBoundary extends React.Component {
@@ -12,7 +15,7 @@ class ErrorBoundary extends React.Component {
     this.state = { hasError: false, error: null, errorInfo: null };
   }
 
-  static getDerivedStateFromError(_error) {
+  static getDerivedStateFromError() {
     return { hasError: true };
   }
 
@@ -63,6 +66,7 @@ const INITIAL_STUDENTS = [
 // ─── App Component (Global State Manager) ─────────────────────
 function App() {
   const { user, logout, loading } = useAuth();
+  const demoMode = useDemoMode;
 
   // State 2: Global Students (Master List)
   const [globalStudents, setGlobalStudents] = useState([]);
@@ -72,7 +76,7 @@ function App() {
     const fetchStudents = async () => {
       if (user && user.role === 'teacher') {
         try {
-          const res = await fetch('/api/auth/students', {
+          const res = await fetch(apiUrl('/api/students'), {
             headers: {
               'Authorization': `Bearer ${user.token}`
             }
@@ -89,22 +93,17 @@ function App() {
               avatar: s.avatar || (idx % 2 === 0 ? "👨‍🎓" : "👩‍🎓")
             }));
 
-            // Fallback: If no real students registered yet, show mock ones so dashboard isn't empty
-            if (enriched.length === 0) {
-              setGlobalStudents(INITIAL_STUDENTS);
-            } else {
-              setGlobalStudents(enriched);
-            }
+            setGlobalStudents(enriched.length === 0 && demoMode ? INITIAL_STUDENTS : enriched);
           }
         } catch (error) {
           console.error("Error fetching students:", error);
-          setGlobalStudents(INITIAL_STUDENTS);
+          setGlobalStudents(demoMode ? INITIAL_STUDENTS : []);
         }
       }
     };
 
     fetchStudents();
-  }, [user]);
+  }, [user, demoMode]);
 
   // Function: Add New Student → appends to globalStudents AND persists
   const addNewStudent = (student) => {
@@ -118,11 +117,12 @@ function App() {
     const updatedStudents = [...globalStudents, student];
     setGlobalStudents(updatedStudents);
 
-    // Persist custom students to localStorage
-    const customOnly = updatedStudents.filter(
-      s => !INITIAL_STUDENTS.some(init => init.email === s.email)
-    );
-    localStorage.setItem('custom_students', JSON.stringify(customOnly));
+    if (demoMode) {
+      const customOnly = updatedStudents.filter(
+        s => !INITIAL_STUDENTS.some(init => init.email === s.email)
+      );
+      localStorage.setItem('custom_students', JSON.stringify(customOnly));
+    }
     return true;
   };
 
@@ -180,9 +180,18 @@ function App() {
   return (
     <ErrorBoundary>
       <Toaster position="top-center" richColors />
-      {renderView()}
+      <Suspense
+        fallback={(
+          <div className="min-h-screen flex items-center justify-center bg-[#F3F6FD]">
+            <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+          </div>
+        )}
+      >
+        {renderView()}
+      </Suspense>
     </ErrorBoundary>
   );
 }
 
 export default App;
+

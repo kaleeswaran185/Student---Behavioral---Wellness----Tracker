@@ -3,14 +3,15 @@ const router = express.Router();
 const CheckIn = require('../models/CheckIn');
 const Journal = require('../models/Journal');
 const { protect } = require('../middleware/authMiddleware');
+const { requireDatabase } = require('../middleware/accessMiddleware');
 
 // @desc    Get all history for logged-in student (Check-ins & Journals combined)
 // @route   GET /api/history
 // @access  Private
-router.get('/', protect, async (req, res) => {
+router.get('/', protect, requireDatabase, async (req, res) => {
     try {
-        const checkIns = await CheckIn.find({ student: req.user._id });
-        const journals = await Journal.find({ student: req.user._id });
+        const checkIns = await CheckIn.find({ student: req.user._id }).sort({ timestamp: -1 });
+        const journals = await Journal.find({ student: req.user._id }).sort({ timestamp: -1 });
 
         // Map and format both arrays to a unified objects array
         const formattedCheckIns = checkIns.map(c => ({
@@ -47,7 +48,7 @@ router.get('/', protect, async (req, res) => {
 // @desc    Create a Check-In
 // @route   POST /api/history/checkin
 // @access  Private
-router.post('/checkin', protect, async (req, res) => {
+router.post('/checkin', protect, requireDatabase, async (req, res) => {
     try {
         const { mood, emoji, note } = req.body;
         
@@ -72,7 +73,7 @@ router.post('/checkin', protect, async (req, res) => {
 // @desc    Create a Journal entry
 // @route   POST /api/history/journal
 // @access  Private
-router.post('/journal', protect, async (req, res) => {
+router.post('/journal', protect, requireDatabase, async (req, res) => {
     try {
         const { mood, content, emoji } = req.body;
         
@@ -96,7 +97,7 @@ router.post('/journal', protect, async (req, res) => {
 // @desc    Delete a history record (Check-in or Journal)
 // @route   DELETE /api/history/:type/:id
 // @access  Private
-router.delete('/:type/:id', protect, async (req, res) => {
+router.delete('/:type/:id', protect, requireDatabase, async (req, res) => {
     try {
         const { type, id } = req.params;
         let Model;

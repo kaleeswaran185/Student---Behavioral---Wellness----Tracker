@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Bell, AlertTriangle, CheckCircle, Clock, MessageSquare, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../context/AuthContext';
+import { useDemoMode } from '../config/runtime';
+import { apiUrl } from '../lib/api';
 
 const MOCK_ALERTS = [
     {
@@ -58,7 +60,7 @@ const MOCK_ALERTS = [
 
 const Alerts = ({ incomingAlerts = [] }) => {
     const { user } = useAuth();
-    // Merge mock alerts with local storage alerts
+    const demoMode = useDemoMode;
     const [alerts, setAlerts] = useState([]);
     const [filter, setFilter] = useState("All"); // 'All', 'Unread', 'High'
 
@@ -74,7 +76,8 @@ const Alerts = ({ incomingAlerts = [] }) => {
         const fetchMessages = async () => {
             if (!user?.token) return;
             try {
-                const res = await fetch(`/api/messages/${encodeURIComponent(activeChat.student)}`, {
+                const conversationKey = activeChat.studentId || activeChat.student;
+                const res = await fetch(apiUrl(`/api/messages/${encodeURIComponent(conversationKey)}`), {
                     headers: user?.token ? { Authorization: `Bearer ${user.token}` } : {}
                 });
                 if (res.ok) {
@@ -114,13 +117,14 @@ const Alerts = ({ incomingAlerts = [] }) => {
         }]);
 
         try {
-            await fetch('/api/messages', {
+            await fetch(apiUrl('/api/messages'), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     ...(user?.token ? { Authorization: `Bearer ${user.token}` } : {})
                 },
                 body: JSON.stringify({
+                    studentId: activeChat.studentId,
                     studentName: activeChat.student,
                     text: text
                 })
@@ -141,7 +145,7 @@ const Alerts = ({ incomingAlerts = [] }) => {
             
             // 1. Try fetching from Backend via API
             try {
-                const res = await fetch('/api/alerts', {
+                const res = await fetch(apiUrl('/api/alerts'), {
                     headers: user?.token ? { Authorization: `Bearer ${user.token}` } : {}
                 });
                 if (res.ok) {
@@ -154,34 +158,33 @@ const Alerts = ({ incomingAlerts = [] }) => {
                 console.error("Backend fetch failed, falling back to localStorage", e);
             }
 
-            // 2. Try fetching from LocalStorage (Fallback / Legacy)
-            try {
-                const stored = localStorage.getItem('teacher_alerts');
-                if (stored) {
-                    const parsed = JSON.parse(stored);
-                    if (Array.isArray(parsed)) {
-                        localAlerts = [...localAlerts, ...parsed];
+            if (demoMode) {
+                try {
+                    const stored = localStorage.getItem('teacher_alerts');
+                    if (stored) {
+                        const parsed = JSON.parse(stored);
+                        if (Array.isArray(parsed)) {
+                            localAlerts = [...localAlerts, ...parsed];
+                        }
+                    } else if (localAlerts.length === 0) {
+                        localAlerts = [...MOCK_ALERTS];
+                        localStorage.setItem('teacher_alerts', JSON.stringify(localAlerts));
                     }
-                } else {
-                    // Seed with mock data if nothing exists locally and backend is empty
+                } catch (e) {
+                    console.error("Failed to parse alerts, resetting demo defaults:", e);
                     if (localAlerts.length === 0) {
                         localAlerts = [...MOCK_ALERTS];
                         localStorage.setItem('teacher_alerts', JSON.stringify(localAlerts));
                     }
                 }
-            } catch (e) {
-                console.error("Failed to parse alerts, resetting to defaults:", e);
-                if (localAlerts.length === 0) {
-                    localAlerts = [...MOCK_ALERTS];
-                    localStorage.setItem('teacher_alerts', JSON.stringify(localAlerts));
-                }
             }
 
-            // Clean up stale "Alex (Student)" test alerts
-            const filtered = localAlerts.filter(a => a.student !== "Alex (Student)");
-            if (filtered.length !== localAlerts.length) {
-                localAlerts = filtered;
-                localStorage.setItem('teacher_alerts', JSON.stringify(localAlerts));
+            if (demoMode) {
+                const filtered = localAlerts.filter(a => a.student !== "Alex (Student)");
+                if (filtered.length !== localAlerts.length) {
+                    localAlerts = filtered;
+                    localStorage.setItem('teacher_alerts', JSON.stringify(localAlerts));
+                }
             }
 
             // Merge incomingAlerts (from App State)
@@ -201,7 +204,7 @@ const Alerts = ({ incomingAlerts = [] }) => {
         return () => {
             clearInterval(interval);
         };
-    }, [incomingAlerts, user?.token]);
+    }, [incomingAlerts, user?.token, demoMode]);
 
     const handleMarkAsRead = async (id) => {
         // Optimistic UI update
@@ -209,11 +212,13 @@ const Alerts = ({ incomingAlerts = [] }) => {
             alert.id === id ? { ...alert, status: "Read" } : alert
         );
         setAlerts(updatedAlerts);
-        localStorage.setItem('teacher_alerts', JSON.stringify(updatedAlerts));
+        if (demoMode) {
+            localStorage.setItem('teacher_alerts', JSON.stringify(updatedAlerts));
+        }
 
         // Send to backend
         try {
-            await fetch(`/api/alerts/${id}/read`, {
+            await fetch(apiUrl(`/api/alerts/${id}/read`), {
                 method: 'PUT',
                 headers: user?.token ? { Authorization: `Bearer ${user.token}` } : {}
             });
@@ -226,11 +231,13 @@ const Alerts = ({ incomingAlerts = [] }) => {
         // Optimistic UI update
         const updatedAlerts = alerts.filter(alert => alert.id !== id);
         setAlerts(updatedAlerts);
-        localStorage.setItem('teacher_alerts', JSON.stringify(updatedAlerts));
+        if (demoMode) {
+            localStorage.setItem('teacher_alerts', JSON.stringify(updatedAlerts));
+        }
 
         // Send to backend
         try {
-            await fetch(`/api/alerts/${id}`, {
+            await fetch(apiUrl(`/api/alerts/${id}`), {
                 method: 'DELETE',
                 headers: user?.token ? { Authorization: `Bearer ${user.token}` } : {}
             });
@@ -292,9 +299,11 @@ const Alerts = ({ incomingAlerts = [] }) => {
                             onClick={async () => {
                                 if (window.confirm("Are you sure you want to clear all alerts?")) {
                                     setAlerts([]);
-                                    localStorage.setItem('teacher_alerts', '[]');
+                                    if (demoMode) {
+                                        localStorage.setItem('teacher_alerts', '[]');
+                                    }
                                     try {
-                                        await fetch('/api/alerts', {
+                                        await fetch(apiUrl('/api/alerts'), {
                                             method: 'DELETE',
                                             headers: user?.token ? { Authorization: `Bearer ${user.token}` } : {}
                                         });

@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+/* eslint-disable no-unused-vars */
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     Search, Filter, UserPlus, Eye, Mail, AlertCircle, CheckCircle,
     Clock, HelpCircle, ChevronDown, X, Sparkles, BookOpen, Shield,
@@ -7,6 +8,8 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { AreaChart, Area, ResponsiveContainer, YAxis } from 'recharts';
 import { useAuth } from '../context/AuthContext';
+import { useDemoMode } from '../config/runtime';
+import { apiUrl } from '../lib/api';
 
 // ─── HELPERS ──────────────────────────────────────────────────
 const hashCode = (str) => {
@@ -166,6 +169,7 @@ const HistoryTimeline = ({ history }) => {
 // ─── MAIN COMPONENT ────────────────────────────────────────────────
 const StudentDirectory = ({ students: propStudents, onAddStudent, onUpdateStudent }) => {
     const { user } = useAuth();
+    const demoMode = useDemoMode;
     const [localStudents, setLocalStudents] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
@@ -202,7 +206,8 @@ const StudentDirectory = ({ students: propStudents, onAddStudent, onUpdateStuden
     const [expandedStudentId, setExpandedStudentId] = useState(null);
 
     const students = propStudents || localStudents;
-    const authHeaders = user?.token ? { Authorization: `Bearer ${user.token}` } : {};
+    const token = user?.token;
+    const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
 
     const updateStudentLocally = (updated) => {
         if (onUpdateStudent) {
@@ -216,7 +221,7 @@ const StudentDirectory = ({ students: propStudents, onAddStudent, onUpdateStuden
 
     const apiUpdate = async (studentId, body) => {
         try {
-            const response = await fetch(`/api/students/${studentId}`, {
+            const response = await fetch(apiUrl(`/api/students/${studentId}`), {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', ...authHeaders },
                 body: JSON.stringify(body)
@@ -234,37 +239,77 @@ const StudentDirectory = ({ students: propStudents, onAddStudent, onUpdateStuden
         return null;
     };
 
-    useEffect(() => {
-        if (!propStudents) fetchStudents();
-        else setLoading(false);
-    }, [propStudents, user?.token]);
-
-    const fetchStudents = async () => {
+    const loadStudents = useCallback(async () => {
         try {
-            const res = await fetch('/api/students', {
+            const res = await fetch(apiUrl('/api/students'), {
                 signal: AbortSignal.timeout(3000),
-                headers: authHeaders
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
             });
             if (!res.ok) throw new Error('bad');
             const data = await res.json();
-            const custom = JSON.parse(localStorage.getItem('custom_students') || '[]');
-            setLocalStudents(data.length > 0 ? [...data, ...custom] : [...MOCK_STUDENTS, ...custom]);
+            const custom = demoMode ? JSON.parse(localStorage.getItem('custom_students') || '[]') : [];
+            if (data.length > 0) {
+                setLocalStudents([...data, ...custom]);
+            } else {
+                setLocalStudents(demoMode ? [...MOCK_STUDENTS, ...custom] : []);
+            }
         } catch {
-            const custom = JSON.parse(localStorage.getItem('custom_students') || '[]');
-            setLocalStudents([...MOCK_STUDENTS, ...custom]);
+            const custom = demoMode ? JSON.parse(localStorage.getItem('custom_students') || '[]') : [];
+            setLocalStudents(demoMode ? [...MOCK_STUDENTS, ...custom] : []);
         }
         setLoading(false);
-    };
+    }, [demoMode, token]);
+
+    useEffect(() => {
+        if (propStudents) {
+            setLoading(false);
+            return;
+        }
+
+        loadStudents();
+    }, [loadStudents, propStudents, user?.token]);
 
     // ── HANDLERS ────────────────────────────────────────────────
     const handleAddStudent = async (e) => {
         e.preventDefault();
-        const opt = { _id: Date.now().toString(), username: newStudent.name, email: newStudent.email, grade: newStudent.grade, risk: newStudent.risk, status: 'Happy', enrollmentStatus: 'Active', avatar: '👤', history: [] };
-        if (onAddStudent) { onAddStudent(opt); }
-        else {
-            const custom = JSON.parse(localStorage.getItem('custom_students') || '[]');
-            localStorage.setItem('custom_students', JSON.stringify([...custom, opt]));
-            setLocalStudents(prev => [...prev, opt]);
+        try {
+            const response = await fetch(apiUrl('/api/students'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...authHeaders },
+                body: JSON.stringify({
+                    name: newStudent.name,
+                    email: newStudent.email,
+                    grade: newStudent.grade,
+                    risk: newStudent.risk,
+                })
+            });
+
+            if (!response.ok) {
+                const failedData = await response.json().catch(() => ({}));
+                throw new Error(failedData.message || 'Failed to add student');
+            }
+
+            const createdStudent = await response.json();
+            if (onAddStudent) {
+                onAddStudent(createdStudent);
+            } else {
+                setLocalStudents(prev => [...prev, createdStudent]);
+            }
+        } catch (error) {
+            console.error('Student creation failed:', error);
+            if (!demoMode) {
+                addNotification(error.message || 'Student creation failed', 'risk');
+                return;
+            }
+
+            const opt = { _id: Date.now().toString(), username: newStudent.name, email: newStudent.email, grade: newStudent.grade, risk: newStudent.risk, status: 'Happy', enrollmentStatus: 'Active', avatar: '👤', history: [] };
+            if (onAddStudent) {
+                onAddStudent(opt);
+            } else {
+                const custom = JSON.parse(localStorage.getItem('custom_students') || '[]');
+                localStorage.setItem('custom_students', JSON.stringify([...custom, opt]));
+                setLocalStudents(prev => [...prev, opt]);
+            }
         }
         setIsAddModalOpen(false);
         setNewStudent({ name: '', email: '', grade: '', risk: 'Low' });
@@ -285,16 +330,19 @@ const StudentDirectory = ({ students: propStudents, onAddStudent, onUpdateStuden
         setAiSuggested(null);
     };
 
-    const handleScheduleVisit = (e) => {
+    const handleScheduleVisit = async (e) => {
         e.preventDefault();
         if (!selectedStudentForBooking || !bookingData.date || !bookingData.time) return;
         const studentId = selectedStudentForBooking._id || selectedStudentForBooking.id;
         const visit = { date: bookingData.date, time: bookingData.time, notes: bookingData.notes };
         setScheduledVisits(prev => ({ ...prev, [studentId]: visit }));
-        // Also push into the student's history optimistically
-        const studentCopy = students.find(s => (s._id || s.id) === studentId) || selectedStudentForBooking;
-        const updated = { ...studentCopy, history: [...(studentCopy.history || []), { type: 'visit', label: `Visit Scheduled: ${bookingData.date} @ ${bookingData.time}`, details: bookingData.notes, timestamp: new Date().toISOString() }] };
-        updateStudentLocally(updated);
+        await apiUpdate(studentId, {
+            historyEvent: {
+                type: 'visit',
+                label: `Visit Scheduled: ${bookingData.date} @ ${bookingData.time}`,
+                details: bookingData.notes
+            }
+        });
         addNotification(`Visit scheduled for ${selectedStudentForBooking.username} on ${bookingData.date}`, 'visit');
         setIsBookingModalOpen(false);
         setSelectedStudentForBooking(null);

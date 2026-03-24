@@ -8,11 +8,12 @@ const journalSchema = new mongoose.Schema({
     },
     mood: {
         type: String,
+        enum: ['Happy', 'Calm', 'Stressed', 'Tired', 'Sad', 'Anxious', 'Excited'],
         required: true
     },
     emoji: {
         type: String,
-        default: '📝'
+        default: '??'
     },
     content: {
         type: String,
@@ -23,5 +24,7 @@ const journalSchema = new mongoose.Schema({
         default: Date.now
     }
 });
+
+journalSchema.index({ student: 1, timestamp: -1 });
 
 module.exports = mongoose.model('Journal', journalSchema);

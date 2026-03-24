@@ -4,9 +4,10 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Send, Sparkles, ShieldAlert, Zap, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { apiUrl } from '../lib/api';
 
 // ─── API Configuration (proxied via Vite → localhost:5000) ────
-const AI_CHAT_URL = '/api/ai-chat';
+const AI_CHAT_URL = apiUrl('/api/ai-chat');
 
 const WellnessBuddy = ({ studentName = "Student", history = [], moodContext = "" }) => {
     const [input, setInput] = useState('');
@@ -31,7 +32,7 @@ const WellnessBuddy = ({ studentName = "Student", history = [], moodContext = ""
         }
 
         setMessages([{ id: 1, text: greeting, sender: 'ai', source: 'local' }]);
-    }, [studentName]);
+    }, [history, studentName]);
 
     // ─── Auto-scroll ──────────────────────────────────────────
     useEffect(() => {
