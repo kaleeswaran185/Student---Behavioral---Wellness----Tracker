@@ -1,0 +1,394 @@
+openapi: 3.0.3
+info:
+  title: Student Behavioral Wellness Tracker API
+  version: 1.0.0
+  description: REST API for student wellness tracking, alerts, messaging, and AI support.
+servers:
+  - url: http://localhost:5000
+tags:
+  - name: Auth
+  - name: Students
+  - name: History
+  - name: Alerts
+  - name: Messages
+  - name: AI
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+    RegisterRequest:
+      type: object
+      required: [username, email, password]
+      properties:
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+    AuthResponse:
+      type: object
+      properties:
+        _id:
+          type: string
+        username:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+        token:
+          type: string
+    StudentCreateRequest:
+      type: object
+      required: [name, email]
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        grade:
+          type: string
+        risk:
+          type: string
+          enum: [Low, Medium, High, Stable]
+        temporaryPassword:
+          type: string
+          minLength: 8
+    StudentUpdateRequest:
+      type: object
+      properties:
+        mentor:
+          type: string
+        risk:
+          type: string
+          enum: [Low, Medium, High, Stable]
+        status:
+          type: string
+          enum: [Happy, Calm, Stressed, Tired, Sad, Anxious, Excited]
+        enrollmentStatus:
+          type: string
+          enum: [Active, Inactive]
+        progressNotes:
+          type: string
+        historyEvent:
+          type: object
+          properties:
+            type:
+              type: string
+            label:
+              type: string
+            details:
+              type: string
+    HistoryCheckInRequest:
+      type: object
+      required: [mood, emoji]
+      properties:
+        mood:
+          type: string
+          enum: [Happy, Calm, Stressed, Tired, Sad, Anxious, Excited]
+        emoji:
+          type: string
+        note:
+          type: string
+    HistoryJournalRequest:
+      type: object
+      required: [mood, content]
+      properties:
+        mood:
+          type: string
+          enum: [Happy, Calm, Stressed, Tired, Sad, Anxious, Excited]
+        content:
+          type: string
+        emoji:
+          type: string
+    SosRequest:
+      type: object
+      properties:
+        alert:
+          type: object
+          properties:
+            severity:
+              type: string
+              enum: [High, Medium, Low]
+            type:
+              type: string
+            message:
+              type: string
+    MessageCreateRequest:
+      type: object
+      required: [text]
+      properties:
+        studentId:
+          type: string
+        studentName:
+          type: string
+        text:
+          type: string
+    AiChatRequest:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+        moodContext:
+          type: string
+        tone:
+          type: string
+          enum: [Encouraging, Humorous, Stoic]
+paths:
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a student account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Registered successfully
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Log in a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+  /api/students:
+    get:
+      tags: [Students]
+      summary: List all students
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Student list
+    post:
+      tags: [Students]
+      summary: Create a new student
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudentCreateRequest'
+      responses:
+        '201':
+          description: Student created
+  /api/students/{id}:
+    put:
+      tags: [Students]
+      summary: Update a student
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudentUpdateRequest'
+      responses:
+        '200':
+          description: Student updated
+    delete:
+      tags: [Students]
+      summary: Delete a student and related records
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Student deleted
+  /api/history:
+    get:
+      tags: [History]
+      summary: Get combined student history
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: History list
+  /api/history/checkin:
+    post:
+      tags: [History]
+      summary: Create a check-in
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HistoryCheckInRequest'
+      responses:
+        '201':
+          description: Check-in created
+  /api/history/journal:
+    post:
+      tags: [History]
+      summary: Create a journal entry
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HistoryJournalRequest'
+      responses:
+        '201':
+          description: Journal created
+  /api/history/{type}/{id}:
+    delete:
+      tags: [History]
+      summary: Delete a history item
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: type
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: History item deleted
+  /api/alerts/sos:
+    post:
+      tags: [Alerts]
+      summary: Trigger an SOS alert
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SosRequest'
+      responses:
+        '201':
+          description: SOS alert created
+  /api/alerts:
+    get:
+      tags: [Alerts]
+      summary: List alerts
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Alert list
+    delete:
+      tags: [Alerts]
+      summary: Clear all alerts
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Alerts cleared
+  /api/alerts/{id}/read:
+    put:
+      tags: [Alerts]
+      summary: Mark an alert as read
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Alert updated
+  /api/messages:
+    post:
+      tags: [Messages]
+      summary: Send a message
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MessageCreateRequest'
+      responses:
+        '201':
+          description: Message created
+  /api/messages/{studentKey}:
+    get:
+      tags: [Messages]
+      summary: Get a student conversation
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: studentKey
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Conversation returned
+  /api/ai-chat:
+    post:
+      tags: [AI]
+      summary: Chat with WellnessBuddy
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AiChatRequest'
+      responses:
+        '200':
+          description: AI reply returned

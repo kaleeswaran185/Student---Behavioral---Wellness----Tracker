@@ -1,11 +1,14 @@
 const cors = require('cors');
 const dotenv = require('dotenv');
 const express = require('express');
+const { body } = require('express-validator');
 const helmet = require('helmet');
 const mongoose = require('mongoose');
 const { rateLimit } = require('express-rate-limit');
 
+const { protect } = require('./middleware/authMiddleware');
 const { errorHandler } = require('./middleware/errorMiddleware');
+const { validationHandler } = require('./middleware/validationMiddleware');
 const alertRoutes = require('./routes/alerts');
 const authRoutes = require('./routes/auth');
 const historyRoutes = require('./routes/history');
@@ -95,12 +98,14 @@ const corsOptions = {
 };
 
 const registerAiRoute = (app) => {
-    app.post('/api/ai-chat', aiRateLimiter, async (req, res) => {
+    app.post('/api/ai-chat', protect, aiRateLimiter, [
+        body('message').trim().notEmpty().withMessage('Message is required.'),
+        body('tone')
+            .optional()
+            .isIn(['Encouraging', 'Humorous', 'Stoic'])
+            .withMessage('Tone is invalid.'),
+    ], validationHandler, async (req, res) => {
         const { message, moodContext, history, tone } = req.body;
-
-        if (!message || !message.trim()) {
-            return res.status(400).json({ error: 'Message is required.' });
-        }
 
         const systemPrompt = `You are "WellnessBuddy", a compassionate school wellness counselor chatbot for students aged 13-18.
 

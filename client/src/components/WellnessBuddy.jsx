@@ -4,12 +4,14 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Send, Sparkles, ShieldAlert, Zap, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { apiUrl } from '../lib/api';
+import { useAuth } from '../context/AuthContext';
+import { apiUrl, getAuthHeaders } from '../lib/api';
 
 // ─── API Configuration (proxied via Vite → localhost:5000) ────
 const AI_CHAT_URL = apiUrl('/api/ai-chat');
 
 const WellnessBuddy = ({ studentName = "Student", history = [], moodContext = "" }) => {
+    const { user } = useAuth();
     const [input, setInput] = useState('');
     const [messages, setMessages] = useState([]);
     const [isTyping, setIsTyping] = useState(false);
@@ -102,7 +104,10 @@ const WellnessBuddy = ({ studentName = "Student", history = [], moodContext = ""
 
             const response = await fetch(AI_CHAT_URL, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...getAuthHeaders(user?.token),
+                },
                 body: JSON.stringify({
                     message: userMessage,
                     moodContext: enhancedContext,

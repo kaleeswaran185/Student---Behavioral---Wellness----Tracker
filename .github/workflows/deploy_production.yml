@@ -1,0 +1,24 @@
+name: Deploy Production
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger production backend deploy
+        if: ${{ secrets.PRODUCTION_BACKEND_DEPLOY_HOOK != '' }}
+        run: curl -fsSL -X POST "${{ secrets.PRODUCTION_BACKEND_DEPLOY_HOOK }}"
+
+      - name: Trigger production frontend deploy
+        if: ${{ secrets.PRODUCTION_FRONTEND_DEPLOY_HOOK != '' }}
+        run: curl -fsSL -X POST "${{ secrets.PRODUCTION_FRONTEND_DEPLOY_HOOK }}"
+
+      - name: Missing hook warning
+        if: ${{ secrets.PRODUCTION_BACKEND_DEPLOY_HOOK == '' || secrets.PRODUCTION_FRONTEND_DEPLOY_HOOK == '' }}
+        run: |
+          echo "Set PRODUCTION_BACKEND_DEPLOY_HOOK and PRODUCTION_FRONTEND_DEPLOY_HOOK to enable automatic production deployment."

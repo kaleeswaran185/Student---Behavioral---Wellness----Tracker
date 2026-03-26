@@ -112,6 +112,68 @@ test('teacher can create and list students', async () => {
     assert.equal(listResponse.body.length, 1);
 });
 
+test('teacher can delete a student and related records', async () => {
+    const { token: teacherToken } = await createUserAndToken({
+        username: 'delete teacher',
+        email: 'delete-teacher@school.test',
+        role: 'teacher',
+    });
+    const { user: student } = await createUserAndToken({
+        username: 'delete student',
+        email: 'delete-student@school.test',
+        role: 'student',
+    });
+
+    await Promise.all([
+        CheckIn.create({
+            student: student._id,
+            mood: 'Happy',
+            emoji: ':)',
+            note: 'to be removed',
+        }),
+        Journal.create({
+            student: student._id,
+            mood: 'Calm',
+            emoji: 'note',
+            content: 'to be removed',
+        }),
+        Alert.create({
+            student: student._id,
+            studentName: student.username,
+            severity: 'High',
+            type: 'SOS Triggered',
+            message: 'to be removed',
+        }),
+        Message.create({
+            student: student._id,
+            studentName: student.username,
+            senderRole: 'teacher',
+            senderUser: student._id,
+            text: 'to be removed',
+        }),
+    ]);
+
+    const deleteResponse = await request(app)
+        .delete(`/api/students/${student._id}`)
+        .set('Authorization', `Bearer ${teacherToken}`);
+
+    assert.equal(deleteResponse.status, 200);
+
+    const [remainingStudent, checkInCount, journalCount, alertCount, messageCount] = await Promise.all([
+        User.findById(student._id),
+        CheckIn.countDocuments({ student: student._id }),
+        Journal.countDocuments({ student: student._id }),
+        Alert.countDocuments({ student: student._id }),
+        Message.countDocuments({ student: student._id }),
+    ]);
+
+    assert.equal(remainingStudent, null);
+    assert.equal(checkInCount, 0);
+    assert.equal(journalCount, 0);
+    assert.equal(alertCount, 0);
+    assert.equal(messageCount, 0);
+});
+
 test('student history supports create list delete', async () => {
     const { token: studentToken } = await createUserAndToken({
         username: 'history student',

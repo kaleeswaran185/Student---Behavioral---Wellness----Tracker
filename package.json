@@ -9,8 +9,9 @@
         "install:all": "npm install && cd client && npm install && cd ../backend && npm install",
         "lint": "cd client && npm run lint",
         "test": "cd backend && npm test",
+        "test:frontend": "cd client && npm test",
         "build": "cd client && npm run build",
-        "verify": "npm run lint && cd backend && npm test && cd ../client && npm run build",
+        "verify": "npm run lint && cd backend && npm test && cd ../client && npm test && npm run build",
         "seed:staging": "cd backend && npm run seed",
         "smoke:staging": "node scripts/staging-smoke.mjs"
     },

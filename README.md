@@ -20,6 +20,10 @@ student and teacher experiences.
 - `client/` - React frontend
 - `backend/` - Express API and MongoDB models
 - `docs/V1_SCOPE.md` - deployment-focused scope freeze for v1
+- `docs/PHASE1_ARCHITECTURE.md` - Phase 1 stack justification and system flow
+- `docs/PHASE1_ERD.md` - Phase 1 ERD and schema design
+- `docs/PHASE1_WIREFRAMES.md` - Phase 1 wireframes and theme notes
+- `docs/PHASE1_SUBMISSION.md` - Phase 1 evaluation checklist
 
 ## Local Setup
 
@@ -96,9 +100,18 @@ npm start
 - Direct pushes to protected branches should require the `CI / Verify` check
 - Full setup notes are in `docs/CI_CD.md`
 
+## Phase 1 Deliverables
+
+- Architecture and stack justification: `docs/PHASE1_ARCHITECTURE.md`
+- ERD and schema design: `docs/PHASE1_ERD.md`
+- UI wireframes and theme: `docs/PHASE1_WIREFRAMES.md`
+- Submission checklist: `docs/PHASE1_SUBMISSION.md`
+
 ## Testing
 
 - Full testing documentation is in `docs/TESTING.md`
+- Phase 2 API testing artifact is in `docs/PHASE2_API_TESTING.md`
+- OpenAPI spec is in `docs/openapi.yaml`
 - Main validation command: `npm run verify`
 - Staging smoke test command: `npm run smoke:staging`
 
@@ -109,6 +122,12 @@ npm start
 - Seed staging data with `npm run seed:staging`
 - Run the hosted smoke test with `npm run smoke:staging`
 - Full staging instructions are in `docs/STAGING_DEPLOY.md`
+- Phase 3 deployment handoff is documented in `docs/PHASE3_DEPLOYMENT.md`
+
+## Final Documentation
+
+- Final project report: `docs/FINAL_REPORT.md`
+- Viva guide: `docs/VIVA_GUIDE.md`
 
 ## Environment Reference
 

@@ -1,9 +1,13 @@
 const express = require('express');
+const { body, param } = require('express-validator');
 const router = express.Router();
 const CheckIn = require('../models/CheckIn');
 const Journal = require('../models/Journal');
 const { protect } = require('../middleware/authMiddleware');
 const { requireDatabase } = require('../middleware/accessMiddleware');
+const { validationHandler } = require('../middleware/validationMiddleware');
+
+const MOOD_LEVELS = ['Happy', 'Calm', 'Stressed', 'Tired', 'Sad', 'Anxious', 'Excited'];
 
 // @desc    Get all history for logged-in student (Check-ins & Journals combined)
 // @route   GET /api/history
@@ -48,39 +52,55 @@ router.get('/', protect, requireDatabase, async (req, res) => {
 // @desc    Create a Check-In
 // @route   POST /api/history/checkin
 // @access  Private
-router.post('/checkin', protect, requireDatabase, async (req, res) => {
-    try {
-        const { mood, emoji, note } = req.body;
-        
-        if (!mood || !emoji) {
-            return res.status(400).json({ message: 'Mood and emoji are required' });
+router.post(
+    '/checkin',
+    protect,
+    requireDatabase,
+    [
+        body('mood').isIn(MOOD_LEVELS).withMessage('Mood is invalid'),
+        body('emoji').trim().notEmpty().withMessage('Emoji is required'),
+        body('note')
+            .optional()
+            .isString()
+            .isLength({ max: 300 })
+            .withMessage('Note must be 300 characters or fewer'),
+    ],
+    validationHandler,
+    async (req, res) => {
+        try {
+            const { mood, emoji, note } = req.body;
+
+            const checkIn = await CheckIn.create({
+                student: req.user._id,
+                mood,
+                emoji,
+                note: note || 'Check-in'
+            });
+
+            res.status(201).json(checkIn);
+        } catch (error) {
+            res.status(500).json({ message: error.message });
         }
-
-        // Create a new check-in every time the emoji is clicked
-        const checkIn = await CheckIn.create({
-            student: req.user._id,
-            mood,
-            emoji,
-            note: note || "Check-in"
-        });
-
-        res.status(201).json(checkIn);
-    } catch (error) {
-        res.status(500).json({ message: error.message });
     }
-});
+);
 
 // @desc    Create a Journal entry
 // @route   POST /api/history/journal
 // @access  Private
-router.post('/journal', protect, requireDatabase, async (req, res) => {
+router.post('/journal', protect, requireDatabase,
+    [
+        body('mood').isIn(MOOD_LEVELS).withMessage('Mood is invalid'),
+        body('content').trim().notEmpty().withMessage('Content is required'),
+        body('content')
+            .isLength({ max: 5000 })
+            .withMessage('Content must be 5000 characters or fewer'),
+        body('emoji').optional().isString().withMessage('Emoji must be text'),
+    ],
+    validationHandler,
+    async (req, res) => {
     try {
         const { mood, content, emoji } = req.body;
         
-        if (!mood || !content) {
-            return res.status(400).json({ message: 'Mood and content are required' });
-        }
-
         const journal = await Journal.create({
             student: req.user._id,
             mood,
@@ -92,36 +112,43 @@ router.post('/journal', protect, requireDatabase, async (req, res) => {
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
-});
+    }
+);
 
 // @desc    Delete a history record (Check-in or Journal)
 // @route   DELETE /api/history/:type/:id
 // @access  Private
-router.delete('/:type/:id', protect, requireDatabase, async (req, res) => {
-    try {
-        const { type, id } = req.params;
-        let Model;
+router.delete(
+    '/:type/:id',
+    protect,
+    requireDatabase,
+    [
+        param('type').isIn(['Check-in', 'Journal']).withMessage('Invalid type specified'),
+        param('id').isMongoId().withMessage('History id must be a valid id'),
+    ],
+    validationHandler,
+    async (req, res) => {
+        try {
+            const { type, id } = req.params;
+            const Model = type === 'Check-in' ? CheckIn : Journal;
 
-        if (type === 'Check-in') Model = CheckIn;
-        else if (type === 'Journal') Model = Journal;
-        else return res.status(400).json({ message: 'Invalid type specified' });
+            const record = await Model.findById(id);
 
-        const record = await Model.findById(id);
+            if (!record) {
+                return res.status(404).json({ message: 'Record not found' });
+            }
 
-        if (!record) {
-            return res.status(404).json({ message: 'Record not found' });
+            // Ensure user owns the record
+            if (record.student.toString() !== req.user.id) {
+                return res.status(401).json({ message: 'User not authorized' });
+            }
+
+            await record.deleteOne();
+            res.json({ id });
+        } catch (error) {
+            res.status(500).json({ message: error.message });
         }
-
-        // Ensure user owns the record
-        if (record.student.toString() !== req.user.id) {
-            return res.status(401).json({ message: 'User not authorized' });
-        }
-
-        await record.deleteOne();
-        res.json({ id });
-    } catch (error) {
-        res.status(500).json({ message: error.message });
     }
-});
+);
 
 module.exports = router;

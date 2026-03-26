@@ -3,10 +3,11 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     Search, Filter, UserPlus, Eye, Mail, AlertCircle, CheckCircle,
     Clock, HelpCircle, ChevronDown, X, Sparkles, BookOpen, Shield,
-    ChevronUp, FileText, History, Edit3, Bell, Star
+    ChevronUp, FileText, History, Edit3, Bell, Star, Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AreaChart, Area, ResponsiveContainer, YAxis } from 'recharts';
+import { toast } from 'sonner';
 import { useAuth } from '../context/AuthContext';
 import { useDemoMode } from '../config/runtime';
 import { apiUrl } from '../lib/api';
@@ -167,7 +168,7 @@ const HistoryTimeline = ({ history }) => {
 };
 
 // ─── MAIN COMPONENT ────────────────────────────────────────────────
-const StudentDirectory = ({ students: propStudents, onAddStudent, onUpdateStudent }) => {
+const StudentDirectory = ({ students: propStudents, onAddStudent, onUpdateStudent, onDeleteStudent }) => {
     const { user } = useAuth();
     const demoMode = useDemoMode;
     const [localStudents, setLocalStudents] = useState([]);
@@ -216,6 +217,14 @@ const StudentDirectory = ({ students: propStudents, onAddStudent, onUpdateStuden
             setLocalStudents(prev => prev.map(s =>
                 (s._id === updated._id || s.id === updated.id) ? updated : s
             ));
+        }
+    };
+
+    const removeStudentLocally = (studentId) => {
+        if (onDeleteStudent) {
+            onDeleteStudent(studentId);
+        } else {
+            setLocalStudents(prev => prev.filter(s => (s._id || s.id) !== studentId));
         }
     };
 
@@ -372,6 +381,33 @@ const StudentDirectory = ({ students: propStudents, onAddStudent, onUpdateStuden
             enrollmentStatus: newStatus,
             historyEvent: { type: 'status', label: `Status changed to ${newStatus}` }
         });
+    };
+
+    const handleDeleteStudent = async (student) => {
+        const studentId = student._id || student.id;
+        const confirmed = window.confirm(`Delete ${student.username} and related records?`);
+
+        if (!confirmed) {
+            return;
+        }
+
+        try {
+            const response = await fetch(apiUrl(`/api/students/${studentId}`), {
+                method: 'DELETE',
+                headers: authHeaders,
+            });
+
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(data.message || 'Failed to delete student');
+            }
+
+            removeStudentLocally(studentId);
+            toast.success(`${student.username} was deleted.`);
+        } catch (error) {
+            console.error('Student deletion failed:', error);
+            toast.error(error.message || 'Unable to delete student right now.');
+        }
     };
 
     const filteredStudents = students.filter(s => {
@@ -607,6 +643,13 @@ const StudentDirectory = ({ students: propStudents, onAddStudent, onUpdateStuden
                                                             className="p-2 rounded-lg hover:bg-indigo-50 hover:text-indigo-600 text-slate-400 transition-all"
                                                         >
                                                             {isExpanded ? <ChevronUp size={16} /> : <History size={16} />}
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDeleteStudent(student)}
+                                                            title="Delete Student"
+                                                            className="p-2 rounded-lg hover:bg-red-50 hover:text-red-600 text-slate-400 transition-all"
+                                                        >
+                                                            <Trash2 size={16} />
                                                         </button>
                                                     </div>
                                                 </td>

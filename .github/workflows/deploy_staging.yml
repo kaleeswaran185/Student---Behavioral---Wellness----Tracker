@@ -1,0 +1,24 @@
+name: Deploy Staging
+
+on:
+  push:
+    branches:
+      - staging
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger staging backend deploy
+        if: ${{ secrets.STAGING_BACKEND_DEPLOY_HOOK != '' }}
+        run: curl -fsSL -X POST "${{ secrets.STAGING_BACKEND_DEPLOY_HOOK }}"
+
+      - name: Trigger staging frontend deploy
+        if: ${{ secrets.STAGING_FRONTEND_DEPLOY_HOOK != '' }}
+        run: curl -fsSL -X POST "${{ secrets.STAGING_FRONTEND_DEPLOY_HOOK }}"
+
+      - name: Missing hook warning
+        if: ${{ secrets.STAGING_BACKEND_DEPLOY_HOOK == '' || secrets.STAGING_FRONTEND_DEPLOY_HOOK == '' }}
+        run: |
+          echo "Set STAGING_BACKEND_DEPLOY_HOOK and STAGING_FRONTEND_DEPLOY_HOOK to enable automatic staging deployment."

@@ -1,5 +1,5 @@
 /* eslint-disable no-unused-vars */
-import React, { useState, useEffect } from 'react';
+import React, { Suspense, lazy, useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import {
     LayoutDashboard, Users, Bell, Settings as SettingsIcon, LogOut, Search,
@@ -11,12 +11,13 @@ import {
     AreaChart, Area 
 } from 'recharts';
 import { AnimatePresence, motion } from 'framer-motion';
-import StudentDetail from '@/components/StudentDetail';
-import StudentDirectory from '@/components/StudentDirectory';
-import Settings from '@/components/Settings';
-import Alerts from '@/components/Alerts';
 import { useAuth } from '../context/AuthContext';
 import { apiUrl } from '../lib/api';
+
+const StudentDetail = lazy(() => import('@/components/StudentDetail'));
+const StudentDirectory = lazy(() => import('@/components/StudentDirectory'));
+const Settings = lazy(() => import('@/components/Settings'));
+const Alerts = lazy(() => import('@/components/Alerts'));
 
 // ─── Persistent AudioContext for Global Alarm ──────────────────
 let sharedAudioCtx = null;
@@ -98,6 +99,12 @@ const StatCard = ({ title, children, className }) => (
     </div>
 );
 
+const LazyPanelFallback = () => (
+    <div className="flex min-h-[280px] items-center justify-center rounded-xl border border-slate-200 bg-white">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
+    </div>
+);
+
 // Mock Data for Activity Feed
 const RECENT_ACTIVITY = [
     { id: 1, text: "Alice completed a mindfulness exercise", time: "2m ago", icon: "🧘‍♀️" },
@@ -116,7 +123,7 @@ const TREND_DATA = [
 ];
 
 // ─── TeacherDashboard (Props-Driven) ───────────────────────────
-const TeacherDashboard = ({ students, onAddStudent, onUpdateStudent, onLogout, alerts }) => {
+const TeacherDashboard = ({ students, onAddStudent, onUpdateStudent, onDeleteStudent, onLogout, alerts }) => {
     const { user } = useAuth();
     const [selectedStudentId, setSelectedStudentId] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
@@ -543,15 +550,30 @@ const TeacherDashboard = ({ students, onAddStudent, onUpdateStudent, onLogout, a
                     </>
                 );
             case 'students':
-                return <StudentDirectory students={students} onAddStudent={handleAddStudent} onUpdateStudent={onUpdateStudent} />;
+                return (
+                    <Suspense fallback={<LazyPanelFallback />}>
+                        <StudentDirectory
+                            students={students}
+                            onAddStudent={handleAddStudent}
+                            onUpdateStudent={onUpdateStudent}
+                            onDeleteStudent={onDeleteStudent}
+                        />
+                    </Suspense>
+                );
             case 'alerts':
-                return <Alerts incomingAlerts={alerts} />;
+                return (
+                    <Suspense fallback={<LazyPanelFallback />}>
+                        <Alerts incomingAlerts={alerts} />
+                    </Suspense>
+                );
             case 'settings':
                 return (
-                    <Settings
-                        onAddStudent={handleAddStudent}
-                        onSave={() => setActiveView('dashboard')}
-                    />
+                    <Suspense fallback={<LazyPanelFallback />}>
+                        <Settings
+                            onAddStudent={handleAddStudent}
+                            onSave={() => setActiveView('dashboard')}
+                        />
+                    </Suspense>
                 );
             default:
                 return null;
@@ -564,10 +586,12 @@ const TeacherDashboard = ({ students, onAddStudent, onUpdateStudent, onLogout, a
             {/* 1. Modal / Slide-over (StudentDetail) */}
             <AnimatePresence>
                 {selectedStudent && (
-                    <StudentDetail
-                        student={selectedStudent}
-                        onClose={() => setSelectedStudentId(null)}
-                    />
+                    <Suspense fallback={<LazyPanelFallback />}>
+                        <StudentDetail
+                            student={selectedStudent}
+                            onClose={() => setSelectedStudentId(null)}
+                        />
+                    </Suspense>
                 )}
             </AnimatePresence>
 

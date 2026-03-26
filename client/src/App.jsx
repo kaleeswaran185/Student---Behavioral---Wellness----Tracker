@@ -133,6 +133,10 @@ function App() {
     ));
   };
 
+  const handleDeleteStudent = (studentId) => {
+    setGlobalStudents(prev => prev.filter(s => (s._id || s.id) !== studentId));
+  };
+
   // Login/Logout is now handled by AuthContext, so we don't need manual setters here
   const handleLogout = () => {
     logout();
@@ -163,6 +167,7 @@ function App() {
           students={globalStudents}
           onAddStudent={addNewStudent}
           onUpdateStudent={handleUpdateStudent}
+          onDeleteStudent={handleDeleteStudent}
           onLogout={handleLogout}
           alerts={[]}
         />
