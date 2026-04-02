@@ -1,5 +1,5 @@
 const DEPLOYED_FRONTEND_ORIGIN = 'https://studentbehavioralwellnesstracker.vercel.app';
-const DEPLOYED_API_BASE_URL = 'https://student_behavioral_wellness_tracker.onrender.com';
+const DEPLOYED_API_BASE_URL = 'https://sbwt-api.onrender.com';
 
 export const normalizeBaseUrl = (value) => {
     const rawValue = String(value || '').trim();
@@ -12,6 +12,9 @@ export const normalizeBaseUrl = (value) => {
 
     try {
         const parsed = new URL(withoutTrailingSlash);
+        if (parsed.hostname.includes('_')) {
+            return '';
+        }
         const normalizedPath = parsed.pathname === '/' ? '' : parsed.pathname.replace(/\/+$/, '');
         return `${parsed.origin}${normalizedPath}`;
     } catch (_error) {
