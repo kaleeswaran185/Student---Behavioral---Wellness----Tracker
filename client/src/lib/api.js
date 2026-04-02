@@ -1,5 +1,5 @@
 const DEPLOYED_FRONTEND_ORIGIN = 'https://studentbehavioralwellnesstracker.vercel.app';
-const DEPLOYED_API_BASE_URL = 'https://sbwt-api.onrender.com';
+const DEPLOYED_API_BASE_URL = 'https://student-behavioral-wellness-tracker.onrender.com';
 
 export const normalizeBaseUrl = (value) => {
     const rawValue = String(value || '').trim();

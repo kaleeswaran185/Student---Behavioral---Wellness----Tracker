@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: sbwt-api
+    name: student-behavioral-wellness-tracker
     env: docker
     dockerContext: ./backend
     dockerfilePath: ./backend/Dockerfile

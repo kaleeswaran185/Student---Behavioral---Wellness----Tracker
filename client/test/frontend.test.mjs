@@ -47,7 +47,7 @@ test('resolveApiBaseUrl falls back to the deployed Render API for the live Verce
             configuredBaseUrl: '',
             currentOrigin: 'https://studentbehavioralwellnesstracker.vercel.app',
         }),
-        'https://sbwt-api.onrender.com'
+        'https://student-behavioral-wellness-tracker.onrender.com'
     );
 });
 
@@ -67,6 +67,6 @@ test('resolveApiBaseUrl ignores an invalid underscore host and uses the Render f
             configuredBaseUrl: 'https://student_behavioral_wellness_tracker.onrender.com',
             currentOrigin: 'https://studentbehavioralwellnesstracker.vercel.app',
         }),
-        'https://sbwt-api.onrender.com'
+        'https://student-behavioral-wellness-tracker.onrender.com'
     );
 });
