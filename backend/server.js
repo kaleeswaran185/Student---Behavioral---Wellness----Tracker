@@ -22,10 +22,26 @@ const NODE_ENV = process.env.NODE_ENV || 'development';
 const PORT = Number(process.env.PORT) || 5000;
 const BODY_LIMIT = process.env.BODY_LIMIT || '1mb';
 
+const normalizeOrigin = (value) => {
+    const rawValue = String(value || '').trim();
+
+    if (!rawValue) {
+        return '';
+    }
+
+    const withoutTrailingSlash = rawValue.replace(/\/+$/, '');
+
+    try {
+        return new URL(withoutTrailingSlash).origin;
+    } catch (_error) {
+        return withoutTrailingSlash;
+    }
+};
+
 const parseOrigins = (value) =>
     String(value || '')
         .split(',')
-        .map((origin) => origin.trim())
+        .map((origin) => normalizeOrigin(origin))
         .filter(Boolean);
 
 const connectDB = async () => {
@@ -67,14 +83,14 @@ const aiRateLimiter = rateLimit({
 });
 
 const configuredOrigins = parseOrigins(process.env.CLIENT_ORIGIN);
+const defaultAllowedOrigins = [
+    'https://studentbehavioralwellnesstracker.vercel.app',
+    ...(NODE_ENV === 'production' ? [] : ['http://localhost:5173']),
+];
 const allowedOrigins = Array.from(
     new Set([
+        ...defaultAllowedOrigins,
         ...configuredOrigins,
-        ...(NODE_ENV === 'production'
-            ? []
-            : [
-                  'https://studentbehavioralwellnesstracker.vercel.app/'
-              ]),
     ])
 );
 
@@ -84,7 +100,9 @@ const corsOptions = {
             return callback(null, true);
         }
 
-        if (allowedOrigins.includes(origin)) {
+        const normalizedOrigin = normalizeOrigin(origin);
+
+        if (allowedOrigins.includes(normalizedOrigin)) {
             return callback(null, true);
         }
 

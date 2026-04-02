@@ -1,4 +1,41 @@
-const configuredBaseUrl = String(import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/$/, '');
+const DEPLOYED_FRONTEND_ORIGIN = 'https://studentbehavioralwellnesstracker.vercel.app';
+const DEPLOYED_API_BASE_URL = 'https://student_behavioral_wellness_tracker.onrender.com';
+
+export const normalizeBaseUrl = (value) => {
+    const rawValue = String(value || '').trim();
+
+    if (!rawValue) {
+        return '';
+    }
+
+    const withoutTrailingSlash = rawValue.replace(/\/+$/, '');
+
+    try {
+        const parsed = new URL(withoutTrailingSlash);
+        const normalizedPath = parsed.pathname === '/' ? '' : parsed.pathname.replace(/\/+$/, '');
+        return `${parsed.origin}${normalizedPath}`;
+    } catch (_error) {
+        return '';
+    }
+};
+
+export const resolveApiBaseUrl = ({
+    configuredBaseUrl = import.meta.env?.VITE_API_BASE_URL,
+    currentOrigin = typeof window !== 'undefined' ? window.location.origin : '',
+} = {}) => {
+    const normalizedConfiguredBaseUrl = normalizeBaseUrl(configuredBaseUrl);
+    const normalizedCurrentOrigin = normalizeBaseUrl(currentOrigin);
+    const deployedFallbackBaseUrl =
+        normalizedCurrentOrigin === DEPLOYED_FRONTEND_ORIGIN ? DEPLOYED_API_BASE_URL : '';
+
+    if (normalizedConfiguredBaseUrl && normalizedConfiguredBaseUrl !== normalizedCurrentOrigin) {
+        return normalizedConfiguredBaseUrl;
+    }
+
+    return deployedFallbackBaseUrl;
+};
+
+const configuredBaseUrl = resolveApiBaseUrl();
 
 export const apiUrl = (path) => {
     if (!path) {

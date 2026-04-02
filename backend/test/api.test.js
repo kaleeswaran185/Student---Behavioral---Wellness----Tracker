@@ -36,6 +36,7 @@ const createUserAndToken = async (overrides = {}) => {
 test.before(async () => {
     process.env.NODE_ENV = 'test';
     process.env.JWT_SECRET = 'test-jwt-secret';
+    process.env.CLIENT_ORIGIN = 'https://studentbehavioralwellnesstracker.vercel.app/';
     mongod = await MongoMemoryServer.create();
     process.env.MONGO_URI = mongod.getUri();
 
@@ -81,6 +82,20 @@ test('register and login student', async () => {
 
     assert.equal(loginResponse.status, 200);
     assert.ok(loginResponse.body.token);
+});
+
+test('cors preflight accepts configured origins with trailing slash in env', async () => {
+    const response = await request(app)
+        .options('/api/auth/login')
+        .set('Origin', 'https://studentbehavioralwellnesstracker.vercel.app')
+        .set('Access-Control-Request-Method', 'POST');
+
+    assert.equal(response.status, 204);
+    assert.equal(
+        response.headers['access-control-allow-origin'],
+        'https://studentbehavioralwellnesstracker.vercel.app'
+    );
+    assert.equal(response.headers['access-control-allow-credentials'], 'true');
 });
 
 test('teacher can create and list students', async () => {

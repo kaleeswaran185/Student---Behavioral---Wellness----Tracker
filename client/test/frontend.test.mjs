@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { achievements } from '../src/lib/gamification.js';
+import { resolveApiBaseUrl } from '../src/lib/api.js';
 import { cn } from '../src/lib/utils.js';
 
 test('cn merges utility classes with tailwind precedence', () => {
@@ -38,4 +39,24 @@ test('early_bird unlocks for check-ins before 8 AM', () => {
 
     assert.equal(achievement.condition([{ type: 'Check-in', time: '07:45 AM' }], 0, {}), true);
     assert.equal(achievement.condition([{ type: 'Check-in', time: '08:15 AM' }], 0, {}), false);
+});
+
+test('resolveApiBaseUrl falls back to the deployed Render API for the live Vercel app', () => {
+    assert.equal(
+        resolveApiBaseUrl({
+            configuredBaseUrl: '',
+            currentOrigin: 'https://studentbehavioralwellnesstracker.vercel.app',
+        }),
+        'https://student_behavioral_wellness_tracker.onrender.com'
+    );
+});
+
+test('resolveApiBaseUrl ignores a frontend-origin API base and keeps relative requests local in dev', () => {
+    assert.equal(
+        resolveApiBaseUrl({
+            configuredBaseUrl: 'http://localhost:5173/',
+            currentOrigin: 'http://localhost:5173',
+        }),
+        ''
+    );
 });
